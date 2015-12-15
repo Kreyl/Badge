@@ -1,0 +1,4 @@
+*.kicad_pcb-bak
+*.fsxview
+*.ses
+Badge_fw/Debug/
