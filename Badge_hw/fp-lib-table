@@ -5,4 +5,5 @@
   (lib (name Quartz)(type KiCad)(uri D:\Libs\Kicad\Quartz.pretty)(options "")(descr ""))
   (lib (name SOT)(type KiCad)(uri D:\Libs\Kicad\SOT.pretty)(options "")(descr ""))
   (lib (name SO_DIL_TSSOP)(type KiCad)(uri D:\Libs\Kicad\SO_DIL_TSSOP.pretty)(options "")(descr ""))
+  (lib (name Display)(type KiCad)(uri D:\Libs\Kicad\Display.pretty)(options "")(descr ""))
 )
