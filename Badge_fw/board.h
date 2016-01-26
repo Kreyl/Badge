@@ -5,8 +5,7 @@
  *      Author: Kreyl
  */
 
-#ifndef BOARD_H_
-#define BOARD_H_
+#pragma once
 
 #include <inttypes.h>
 
@@ -44,7 +43,27 @@
 #define BTN_GPIO        GPIOA
 #define BTN_PIN         0
 
+#if 1 // LCD
+#define LCD_GPIO        GPIOB
+#define LCD_RST         8
+#define LCD_CS          9
+#define LCD_RS          10
+#define LCD_WR          11
+#define LCD_RD          12
+#define LCD_IMO         13
+//#define LCD_MASK_WR     (0x00FF | (1<<LCD_WR))  // clear bus and set WR low
+//#define LCD_MODE_READ   0xFFFF0000
+//#define LCD_MODE_WRITE  0x00005555
+#define LCD_BCKLT_GPIO  GPIOB
+#define LCD_BCKLT_PIN1  14
+#define LCD_BCKLT_PIN2  15
+#endif
+
 #if 1 // ========================= Timer =======================================
+// LCD
+#define LCD_BCKLT_TMR   TIM15
+#define LCD_BCKLT_CHNL1 1
+#define LCD_BCKLT_CHNL2 2
 #endif
 
 #if 1 // =========================== SPI =======================================
@@ -113,5 +132,3 @@ const uint8_t AdcChannels[] = { SNS_CHNL0, SNS_CHNL1 };
 #endif // ADC
 
 #endif
-
-#endif /* BOARD_H_ */

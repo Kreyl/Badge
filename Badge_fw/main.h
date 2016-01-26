@@ -5,8 +5,7 @@
  *      Author: g.kruglov
  */
 
-#ifndef MAIN_H_
-#define MAIN_H_
+#pragma once
 
 #include "ch.h"
 #include "kl_lib.h"
@@ -35,5 +34,3 @@ public:
 };
 
 extern App_t App;
-
-#endif /* MAIN_H_ */

@@ -6,6 +6,7 @@
  */
 
 #include "main.h"
+#include "lcd_round.h"
 //#include "SimpleSensors.h"
 
 App_t App;
@@ -13,7 +14,7 @@ App_t App;
 int main(void) {
     // ==== Setup clock frequency ====
 //    Clk.EnablePrefetch();
-//    Clk.SetupBusDividers(ahbDiv2, apbDiv1);
+    Clk.SetupBusDividers(ahbDiv2, apbDiv1);
     Clk.UpdateFreqValues();
 
     // Init OS
@@ -23,8 +24,13 @@ int main(void) {
     // ==== Init hardware ====
     Uart.Init(115200, UART_GPIO, UART_TX_PIN);//, UART_GPIO, UART_RX_PIN);
     Uart.Printf("\r%S %S\r", APP_NAME, APP_VERSION);
+    Clk.PrintFreqs();
 
-//    Clk.PrintFreqs();
+    Lcd.Init();
+    Lcd.SetBrightness(100);
+
+//    PinSetupOut(GPIOB, 15, omPushPull);
+//    PinClear(GPIOB, 15);
 
 //    App.InitThread();
 //    PinSensors.Init();
@@ -36,18 +42,16 @@ int main(void) {
 __attribute__ ((__noreturn__))
 void App_t::ITask() {
     while(true) {
-        chThdSleepMilliseconds(207);
-        Uart.Printf("ogo\r");
-//        uint32_t EvtMsk = chEvtWaitAny(ALL_EVENTS);
-//        if(EvtMsk & EVTMSK_UART_NEW_CMD) {
-//            OnCmd((Shell_t*)&Uart);
-//            Uart.SignalCmdProcessed();
-//        }
-//#if 1 // ==== USB ====
-//        if(EvtMsk & EVTMSK_USB_READY) {
-//            Uart.Printf("UsbReady\r");
-//        }
-//#endif
+        uint32_t EvtMsk = chEvtWaitAny(ALL_EVENTS);
+        if(EvtMsk & EVTMSK_UART_NEW_CMD) {
+            OnCmd((Shell_t*)&Uart);
+            Uart.SignalCmdProcessed();
+        }
+#if 1 // ==== USB ====
+        if(EvtMsk & EVTMSK_USB_READY) {
+            Uart.Printf("UsbReady\r");
+        }
+#endif
     } // while true
 }
 

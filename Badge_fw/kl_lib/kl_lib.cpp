@@ -98,9 +98,9 @@ void Timer_t::InitPwm(GPIO_TypeDef *GPIO, uint16_t N, uint8_t Chnl, uint32_t ATo
     else if(ANY_OF_3(ITmr, TIM12, TIM13, TIM14)) PinSetupAlterFunc(GPIO, N, OutputType, pudNone, AF9);
 #elif defined STM32F100_MCUCONF
     PinSetupAlterFunc(GPIO, N, OutputType, pudNone, AF0);   // Alternate function is dummy
-    ITmr->BDTR = 0xC000;   // Main output Enable
+//    ITmr->BDTR = 0xC000;   // Main output Enable
 #endif
-
+    ITmr->BDTR = 0xC000;   // Main output Enable
     ITmr->ARR = ATopValue;
     // Output
     uint16_t tmp = (Inverted == invInverted)? 0b111 : 0b110; // PWM mode 1 or 2
