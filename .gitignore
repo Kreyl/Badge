@@ -2,3 +2,12 @@
 *.fsxview
 *.ses
 Badge_fw/Debug/
+Badge_hw/Badge.dsn
+*.gbl
+*.gbs
+*.gbo
+*.gm1
+*.gtl
+*.gts
+*.gto
+*.drl
