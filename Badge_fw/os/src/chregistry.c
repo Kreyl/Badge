@@ -1,15 +1,14 @@
 /*
-    ChibiOS/RT - Copyright (C) 2006,2007,2008,2009,2010,
-                 2011,2012 Giovanni Di Sirio.
+    ChibiOS - Copyright (C) 2006..2015 Giovanni Di Sirio.
 
-    This file is part of ChibiOS/RT.
+    This file is part of ChibiOS.
 
-    ChibiOS/RT is free software; you can redistribute it and/or modify
+    ChibiOS is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
-    ChibiOS/RT is distributed in the hope that it will be useful,
+    ChibiOS is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
@@ -24,7 +23,6 @@
  *
  * @addtogroup registry
  * @details Threads Registry related APIs and services.
- *
  *          <h2>Operation mode</h2>
  *          The Threads Registry is a double linked list that holds all the
  *          active threads in the system.<br>
@@ -42,54 +40,77 @@
  *          terminating threads can pulse an event source and an event handler
  *          can perform a scansion of the registry in order to recover the
  *          memory.
- * @pre     In order to use the threads registry the @p CH_USE_REGISTRY option
- *          must be enabled in @p chconf.h.
+ * @pre     In order to use the threads registry the @p CH_CFG_USE_REGISTRY
+ *          option must be enabled in @p chconf.h.
  * @{
  */
 #include "ch.h"
 
-#if CH_USE_REGISTRY || defined(__DOXYGEN__)
+#if (CH_CFG_USE_REGISTRY == TRUE) || defined(__DOXYGEN__)
 
-#define _offsetof(st, m)                                                     \
-  ((size_t)((char *)&((st *)0)->m - (char *)0))
+/*===========================================================================*/
+/* Module exported variables.                                                */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module local types.                                                       */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module local variables.                                                   */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module local functions.                                                   */
+/*===========================================================================*/
+
+#define _offsetof(st, m)                                                    \
+  /*lint -save -e9005 -e9033 -e413 [11.8, 10.8 1.3] Normal pointers
+    arithmetic, it is safe.*/                                               \
+  ((size_t)((char *)&((st *)0)->m - (char *)0))                             \
+  /*lint -restore*/
+
+/*===========================================================================*/
+/* Module exported functions.                                                */
+/*===========================================================================*/
 
 /*
  * OS signature in ROM plus debug-related information.
  */
 ROMCONST chdebug_t ch_debug = {
-  "main",
+  {'m', 'a', 'i', 'n'},
   (uint8_t)0,
   (uint8_t)sizeof (chdebug_t),
-  (uint16_t)((CH_KERNEL_MAJOR << 11) |
-             (CH_KERNEL_MINOR << 6) |
-             (CH_KERNEL_PATCH) << 0),
+  (uint16_t)(((unsigned)CH_KERNEL_MAJOR << 11U) |
+             ((unsigned)CH_KERNEL_MINOR << 6U) |
+             ((unsigned)CH_KERNEL_PATCH << 0U)),
   (uint8_t)sizeof (void *),
   (uint8_t)sizeof (systime_t),
-  (uint8_t)sizeof (Thread),
-  (uint8_t)_offsetof(Thread, p_prio),
-  (uint8_t)_offsetof(Thread, p_ctx),
-  (uint8_t)_offsetof(Thread, p_newer),
-  (uint8_t)_offsetof(Thread, p_older),
-  (uint8_t)_offsetof(Thread, p_name),
-#if CH_DBG_ENABLE_STACK_CHECK
-  (uint8_t)_offsetof(Thread, p_stklimit),
+  (uint8_t)sizeof (thread_t),
+  (uint8_t)_offsetof(thread_t, p_prio),
+  (uint8_t)_offsetof(thread_t, p_ctx),
+  (uint8_t)_offsetof(thread_t, p_newer),
+  (uint8_t)_offsetof(thread_t, p_older),
+  (uint8_t)_offsetof(thread_t, p_name),
+#if CH_DBG_ENABLE_STACK_CHECK == TRUE
+  (uint8_t)_offsetof(thread_t, p_stklimit),
 #else
   (uint8_t)0,
 #endif
-  (uint8_t)_offsetof(Thread, p_state),
-  (uint8_t)_offsetof(Thread, p_flags),
-#if CH_USE_DYNAMIC
-  (uint8_t)_offsetof(Thread, p_refs),
+  (uint8_t)_offsetof(thread_t, p_state),
+  (uint8_t)_offsetof(thread_t, p_flags),
+#if CH_CFG_USE_DYNAMIC == TRUE
+  (uint8_t)_offsetof(thread_t, p_refs),
 #else
   (uint8_t)0,
 #endif
-#if CH_TIME_QUANTUM > 0
-  (uint8_t)_offsetof(Thread, p_preempt),
+#if CH_CFG_TIME_QUANTUM > 0
+  (uint8_t)_offsetof(thread_t, p_preempt),
 #else
   (uint8_t)0,
 #endif
-#if CH_DBG_THREADS_PROFILING
-  (uint8_t)_offsetof(Thread, p_time)
+#if CH_DBG_THREADS_PROFILING == TRUE
+  (uint8_t)_offsetof(thread_t, p_time)
 #else
   (uint8_t)0
 #endif
@@ -107,15 +128,16 @@ ROMCONST chdebug_t ch_debug = {
  *
  * @api
  */
-Thread *chRegFirstThread(void) {
-  Thread *tp;
+thread_t *chRegFirstThread(void) {
+  thread_t *tp;
 
   chSysLock();
-  tp = rlist.r_newer;
-#if CH_USE_DYNAMIC
+  tp = ch.rlist.r_newer;
+#if CH_CFG_USE_DYNAMIC == TRUE
   tp->p_refs++;
 #endif
   chSysUnlock();
+
   return tp;
 }
 
@@ -130,27 +152,30 @@ Thread *chRegFirstThread(void) {
  *
  * @api
  */
-Thread *chRegNextThread(Thread *tp) {
-  Thread *ntp;
+thread_t *chRegNextThread(thread_t *tp) {
+  thread_t *ntp;
 
   chSysLock();
   ntp = tp->p_newer;
-  if (ntp == (Thread *)&rlist)
+  /*lint -save -e9087 -e740 [11.3, 1.3] Cast required by list handling.*/
+  if (ntp == (thread_t *)&ch.rlist) {
+  /*lint -restore*/
     ntp = NULL;
-#if CH_USE_DYNAMIC
+  }
+#if CH_CFG_USE_DYNAMIC == TRUE
   else {
-    chDbgAssert(ntp->p_refs < 255, "chRegNextThread(), #1",
-                "too many references");
+    chDbgAssert(ntp->p_refs < (trefs_t)255, "too many references");
     ntp->p_refs++;
   }
 #endif
   chSysUnlock();
-#if CH_USE_DYNAMIC
+#if CH_CFG_USE_DYNAMIC == TRUE
   chThdRelease(tp);
 #endif
+
   return ntp;
 }
 
-#endif /* CH_USE_REGISTRY */
+#endif /* CH_CFG_USE_REGISTRY == TRUE */
 
 /** @} */

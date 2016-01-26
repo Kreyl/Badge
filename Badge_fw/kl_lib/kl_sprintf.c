@@ -84,6 +84,11 @@ uint32_t kl_vsprintf(ftVoidChar PPutChar, uint32_t MaxLength, const char *format
                 if(CharCnt >= MaxLength) break;
             }
         }
+        else if(c == '%') {
+            PPutChar('%');
+            CharCnt++;
+        }
+
         if(CharCnt >= MaxLength) break;
     }
     return CharCnt;

@@ -1,15 +1,14 @@
 /*
-    ChibiOS/RT - Copyright (C) 2006,2007,2008,2009,2010,
-                 2011,2012 Giovanni Di Sirio.
+    ChibiOS - Copyright (C) 2006..2015 Giovanni Di Sirio.
 
-    This file is part of ChibiOS/RT.
+    This file is part of ChibiOS.
 
-    ChibiOS/RT is free software; you can redistribute it and/or modify
+    ChibiOS is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
-    ChibiOS/RT is distributed in the hope that it will be useful,
+    ChibiOS is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
@@ -29,12 +28,36 @@
 
 #include "ch.h"
 
-#if CH_USE_DYNAMIC || defined(__DOXYGEN__)
+#if (CH_CFG_USE_DYNAMIC == TRUE) || defined(__DOXYGEN__)
+
+/*===========================================================================*/
+/* Module local definitions.                                                 */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module exported variables.                                                */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module local types.                                                       */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module local variables.                                                   */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module local functions.                                                   */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module exported functions.                                                */
+/*===========================================================================*/
 
 /**
  * @brief   Adds a reference to a thread object.
- * @pre     The configuration option @p CH_USE_DYNAMIC must be enabled in order
- *          to use this function.
+ * @pre     The configuration option @p CH_CFG_USE_DYNAMIC must be enabled in
+ *          order to use this function.
  *
  * @param[in] tp        pointer to the thread
  * @return              The same thread pointer passed as parameter
@@ -42,66 +65,72 @@
  *
  * @api
  */
-Thread *chThdAddRef(Thread *tp) {
+thread_t *chThdAddRef(thread_t *tp) {
 
   chSysLock();
-  chDbgAssert(tp->p_refs < 255, "chThdAddRef(), #1", "too many references");
+  chDbgAssert(tp->p_refs < (trefs_t)255, "too many references");
   tp->p_refs++;
   chSysUnlock();
+
   return tp;
 }
 
 /**
  * @brief   Releases a reference to a thread object.
  * @details If the references counter reaches zero <b>and</b> the thread
- *          is in the @p THD_STATE_FINAL state then the thread's memory is
+ *          is in the @p CH_STATE_FINAL state then the thread's memory is
  *          returned to the proper allocator.
- * @pre     The configuration option @p CH_USE_DYNAMIC must be enabled in order
- *          to use this function.
+ * @pre     The configuration option @p CH_CFG_USE_DYNAMIC must be enabled in
+ *          order to use this function.
  * @note    Static threads are not affected.
  *
  * @param[in] tp        pointer to the thread
  *
  * @api
  */
-void chThdRelease(Thread *tp) {
+void chThdRelease(thread_t *tp) {
   trefs_t refs;
 
   chSysLock();
-  chDbgAssert(tp->p_refs > 0, "chThdRelease(), #1", "not referenced");
-  refs = --tp->p_refs;
+  chDbgAssert(tp->p_refs > (trefs_t)0, "not referenced");
+  tp->p_refs--;
+  refs = tp->p_refs;
   chSysUnlock();
 
   /* If the references counter reaches zero and the thread is in its
      terminated state then the memory can be returned to the proper
      allocator. Of course static threads are not affected.*/
-  if ((refs == 0) && (tp->p_state == THD_STATE_FINAL)) {
-    switch (tp->p_flags & THD_MEM_MODE_MASK) {
-#if CH_USE_HEAP
-    case THD_MEM_MODE_HEAP:
-#if CH_USE_REGISTRY
+  if ((refs == (trefs_t)0) && (tp->p_state == CH_STATE_FINAL)) {
+    switch (tp->p_flags & CH_FLAG_MODE_MASK) {
+#if CH_CFG_USE_HEAP == TRUE
+    case CH_FLAG_MODE_HEAP:
+#if CH_CFG_USE_REGISTRY == TRUE
       REG_REMOVE(tp);
 #endif
       chHeapFree(tp);
       break;
 #endif
-#if CH_USE_MEMPOOLS
-    case THD_MEM_MODE_MEMPOOL:
-#if CH_USE_REGISTRY
+#if CH_CFG_USE_MEMPOOLS == TRUE
+    case CH_FLAG_MODE_MPOOL:
+#if CH_CFG_USE_REGISTRY == TRUE
       REG_REMOVE(tp);
 #endif
       chPoolFree(tp->p_mpool, tp);
       break;
 #endif
+    default:
+      /* Nothing to do for static threads, those are removed from the
+         registry on exit.*/
+      break;
     }
   }
 }
 
-#if CH_USE_HEAP || defined(__DOXYGEN__)
+#if (CH_CFG_USE_HEAP == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Creates a new thread allocating the memory from the heap.
- * @pre     The configuration options @p CH_USE_DYNAMIC and @p CH_USE_HEAP
- *          must be enabled in order to use this function.
+ * @pre     The configuration options @p CH_CFG_USE_DYNAMIC and
+ *          @p CH_CFG_USE_HEAP must be enabled in order to use this function.
  * @note    A thread can terminate by calling @p chThdExit() or by simply
  *          returning from its main function.
  * @note    The memory allocated for the thread is not released when the thread
@@ -114,45 +143,48 @@ void chThdRelease(Thread *tp) {
  * @param[in] pf        the thread function
  * @param[in] arg       an argument passed to the thread function. It can be
  *                      @p NULL.
- * @return              The pointer to the @p Thread structure allocated for
+ * @return              The pointer to the @p thread_t structure allocated for
  *                      the thread into the working space area.
  * @retval NULL         if the memory cannot be allocated.
  *
  * @api
  */
-Thread *chThdCreateFromHeap(MemoryHeap *heapp, size_t size,
-                            tprio_t prio, tfunc_t pf, void *arg) {
+thread_t *chThdCreateFromHeap(memory_heap_t *heapp, size_t size,
+                              tprio_t prio, tfunc_t pf, void *arg) {
   void *wsp;
-  Thread *tp;
+  thread_t *tp;
 
   wsp = chHeapAlloc(heapp, size);
-  if (wsp == NULL)
+  if (wsp == NULL) {
     return NULL;
+  }
   
-#if CH_DBG_FILL_THREADS
+#if CH_DBG_FILL_THREADS == TRUE
   _thread_memfill((uint8_t *)wsp,
-                  (uint8_t *)wsp + sizeof(Thread),
-                  CH_THREAD_FILL_VALUE);
-  _thread_memfill((uint8_t *)wsp + sizeof(Thread),
+                  (uint8_t *)wsp + sizeof(thread_t),
+                  CH_DBG_THREAD_FILL_VALUE);
+  _thread_memfill((uint8_t *)wsp + sizeof(thread_t),
                   (uint8_t *)wsp + size,
-                  CH_STACK_FILL_VALUE);
+                  CH_DBG_STACK_FILL_VALUE);
 #endif
   
   chSysLock();
   tp = chThdCreateI(wsp, size, prio, pf, arg);
-  tp->p_flags = THD_MEM_MODE_HEAP;
-  chSchWakeupS(tp, RDY_OK);
+  tp->p_flags = CH_FLAG_MODE_HEAP;
+  chSchWakeupS(tp, MSG_OK);
   chSysUnlock();
+
   return tp;
 }
-#endif /* CH_USE_HEAP */
+#endif /* CH_CFG_USE_HEAP == TRUE */
 
-#if CH_USE_MEMPOOLS || defined(__DOXYGEN__)
+#if (CH_CFG_USE_MEMPOOLS == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Creates a new thread allocating the memory from the specified
  *          memory pool.
- * @pre     The configuration options @p CH_USE_DYNAMIC and @p CH_USE_MEMPOOLS
- *          must be enabled in order to use this function.
+ * @pre     The configuration options @p CH_CFG_USE_DYNAMIC and
+ *          @p CH_CFG_USE_MEMPOOLS must be enabled in order to use this
+ *          function.
  * @note    A thread can terminate by calling @p chThdExit() or by simply
  *          returning from its main function.
  * @note    The memory allocated for the thread is not released when the thread
@@ -163,42 +195,44 @@ Thread *chThdCreateFromHeap(MemoryHeap *heapp, size_t size,
  * @param[in] pf        the thread function
  * @param[in] arg       an argument passed to the thread function. It can be
  *                      @p NULL.
- * @return              The pointer to the @p Thread structure allocated for
+ * @return              The pointer to the @p thread_t structure allocated for
  *                      the thread into the working space area.
  * @retval  NULL        if the memory pool is empty.
  *
  * @api
  */
-Thread *chThdCreateFromMemoryPool(MemoryPool *mp, tprio_t prio,
-                                  tfunc_t pf, void *arg) {
+thread_t *chThdCreateFromMemoryPool(memory_pool_t *mp, tprio_t prio,
+                                    tfunc_t pf, void *arg) {
   void *wsp;
-  Thread *tp;
+  thread_t *tp;
 
-  chDbgCheck(mp != NULL, "chThdCreateFromMemoryPool");
+  chDbgCheck(mp != NULL);
 
   wsp = chPoolAlloc(mp);
-  if (wsp == NULL)
+  if (wsp == NULL) {
     return NULL;
+  }
   
-#if CH_DBG_FILL_THREADS
+#if CH_DBG_FILL_THREADS == TRUE
   _thread_memfill((uint8_t *)wsp,
-                  (uint8_t *)wsp + sizeof(Thread),
-                  CH_THREAD_FILL_VALUE);
-  _thread_memfill((uint8_t *)wsp + sizeof(Thread),
+                  (uint8_t *)wsp + sizeof(thread_t),
+                  CH_DBG_THREAD_FILL_VALUE);
+  _thread_memfill((uint8_t *)wsp + sizeof(thread_t),
                   (uint8_t *)wsp + mp->mp_object_size,
-                  CH_STACK_FILL_VALUE);
+                  CH_DBG_STACK_FILL_VALUE);
 #endif
 
   chSysLock();
   tp = chThdCreateI(wsp, mp->mp_object_size, prio, pf, arg);
-  tp->p_flags = THD_MEM_MODE_MEMPOOL;
+  tp->p_flags = CH_FLAG_MODE_MPOOL;
   tp->p_mpool = mp;
-  chSchWakeupS(tp, RDY_OK);
+  chSchWakeupS(tp, MSG_OK);
   chSysUnlock();
+
   return tp;
 }
-#endif /* CH_USE_MEMPOOLS */
+#endif /* CH_CFG_USE_MEMPOOLS == TRUE */
 
-#endif /* CH_USE_DYNAMIC */
+#endif /* CH_CFG_USE_DYNAMIC == TRUE */
 
 /** @} */

@@ -1,15 +1,14 @@
 /*
-    ChibiOS/RT - Copyright (C) 2006,2007,2008,2009,2010,
-                 2011,2012 Giovanni Di Sirio.
+    ChibiOS - Copyright (C) 2006..2015 Giovanni Di Sirio.
 
-    This file is part of ChibiOS/RT.
+    This file is part of ChibiOS.
 
-    ChibiOS/RT is free software; you can redistribute it and/or modify
+    ChibiOS is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
-    ChibiOS/RT is distributed in the hope that it will be useful,
+    ChibiOS is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
@@ -36,23 +35,43 @@
  *          architectures function pointers can be larger that @p msg_t.<br>
  *          Messages are usually processed in FIFO order but it is possible to
  *          process them in priority order by enabling the
- *          @p CH_USE_MESSAGES_PRIORITY option in @p chconf.h.<br>
- * @pre     In order to use the message APIs the @p CH_USE_MESSAGES option
+ *          @p CH_CFG_USE_MESSAGES_PRIORITY option in @p chconf.h.<br>
+ * @pre     In order to use the message APIs the @p CH_CFG_USE_MESSAGES option
  *          must be enabled in @p chconf.h.
  * @post    Enabling messages requires 6-12 (depending on the architecture)
- *          extra bytes in the @p Thread structure.
+ *          extra bytes in the @p thread_t structure.
  * @{
  */
 
 #include "ch.h"
 
-#if CH_USE_MESSAGES || defined(__DOXYGEN__)
+#if (CH_CFG_USE_MESSAGES == TRUE) || defined(__DOXYGEN__)
 
-#if CH_USE_MESSAGES_PRIORITY
-#define msg_insert(tp, qp) prio_insert(tp, qp)
+/*===========================================================================*/
+/* Module exported variables.                                                */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module local types.                                                       */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module local variables.                                                   */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module local functions.                                                   */
+/*===========================================================================*/
+
+#if CH_CFG_USE_MESSAGES_PRIORITY == TRUE
+#define msg_insert(tp, qp) queue_prio_insert(tp, qp)
 #else
 #define msg_insert(tp, qp) queue_insert(tp, qp)
 #endif
+
+/*===========================================================================*/
+/* Module exported functions.                                                */
+/*===========================================================================*/
 
 /**
  * @brief   Sends a message to the specified thread.
@@ -65,20 +84,22 @@
  *
  * @api
  */
-msg_t chMsgSend(Thread *tp, msg_t msg) {
-  Thread *ctp = currp;
+msg_t chMsgSend(thread_t *tp, msg_t msg) {
+  thread_t *ctp = currp;
 
-  chDbgCheck(tp != NULL, "chMsgSend");
+  chDbgCheck(tp != NULL);
 
   chSysLock();
   ctp->p_msg = msg;
   ctp->p_u.wtobjp = &tp->p_msgqueue;
   msg_insert(ctp, &tp->p_msgqueue);
-  if (tp->p_state == THD_STATE_WTMSG)
-    chSchReadyI(tp);
-  chSchGoSleepS(THD_STATE_SNDMSGQ);
+  if (tp->p_state == CH_STATE_WTMSG) {
+    (void) chSchReadyI(tp);
+  }
+  chSchGoSleepS(CH_STATE_SNDMSGQ);
   msg = ctp->p_u.rdymsg;
   chSysUnlock();
+
   return msg;
 }
 
@@ -96,15 +117,17 @@ msg_t chMsgSend(Thread *tp, msg_t msg) {
  *
  * @api
  */
-Thread *chMsgWait(void) {
-  Thread *tp;
+thread_t *chMsgWait(void) {
+  thread_t *tp;
 
   chSysLock();
-  if (!chMsgIsPendingI(currp))
-    chSchGoSleepS(THD_STATE_WTMSG);
-  tp = fifo_remove(&currp->p_msgqueue);
-  tp->p_state = THD_STATE_SNDMSG;
+  if (!chMsgIsPendingI(currp)) {
+    chSchGoSleepS(CH_STATE_WTMSG);
+  }
+  tp = queue_fifo_remove(&currp->p_msgqueue);
+  tp->p_state = CH_STATE_SNDMSG;
   chSysUnlock();
+
   return tp;
 }
 
@@ -118,15 +141,14 @@ Thread *chMsgWait(void) {
  *
  * @api
  */
-void chMsgRelease(Thread *tp, msg_t msg) {
+void chMsgRelease(thread_t *tp, msg_t msg) {
 
   chSysLock();
-  chDbgAssert(tp->p_state == THD_STATE_SNDMSG,
-              "chMsgRelease(), #1", "invalid state");
+  chDbgAssert(tp->p_state == CH_STATE_SNDMSG, "invalid state");
   chMsgReleaseS(tp, msg);
   chSysUnlock();
 }
 
-#endif /* CH_USE_MESSAGES */
+#endif /* CH_CFG_USE_MESSAGES == TRUE */
 
 /** @} */

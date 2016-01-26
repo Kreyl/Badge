@@ -1,15 +1,14 @@
 /*
-    ChibiOS/RT - Copyright (C) 2006,2007,2008,2009,2010,
-                 2011,2012 Giovanni Di Sirio.
+    ChibiOS - Copyright (C) 2006..2015 Giovanni Di Sirio.
 
-    This file is part of ChibiOS/RT.
+    This file is part of ChibiOS.
 
-    ChibiOS/RT is free software; you can redistribute it and/or modify
+    ChibiOS is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
-    ChibiOS/RT is distributed in the hope that it will be useful,
+    ChibiOS is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
@@ -29,12 +28,34 @@
 #ifndef _CHMEMCORE_H_
 #define _CHMEMCORE_H_
 
+#if (CH_CFG_USE_MEMCORE == TRUE) || defined(__DOXYGEN__)
+
+/*===========================================================================*/
+/* Module constants.                                                         */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module pre-compile time settings.                                         */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Derived constants and error checks.                                       */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module data structures and types.                                         */
+/*===========================================================================*/
+
 /**
  * @brief   Memory get function.
  * @note    This type must be assignment compatible with the @p chMemAlloc()
  *          function.
  */
 typedef void *(*memgetfunc_t)(size_t size);
+
+/*===========================================================================*/
+/* Module macros.                                                            */
+/*===========================================================================*/
 
 /**
  * @name    Alignment support macros
@@ -47,7 +68,7 @@ typedef void *(*memgetfunc_t)(size_t size);
 /**
  * @brief   Alignment mask constant.
  */
-#define MEM_ALIGN_MASK      (MEM_ALIGN_SIZE - 1)
+#define MEM_ALIGN_MASK      (MEM_ALIGN_SIZE - 1U)
 
 /**
  * @brief   Alignment helper macro.
@@ -61,12 +82,14 @@ typedef void *(*memgetfunc_t)(size_t size);
 
 /**
  * @brief   Returns whatever a pointer or memory size is aligned to
- *          the type @p align_t.
+ *          the type @p stkalign_t.
  */
-#define MEM_IS_ALIGNED(p)   (((size_t)(p) & MEM_ALIGN_MASK) == 0)
+#define MEM_IS_ALIGNED(p)   (((size_t)(p) & MEM_ALIGN_MASK) == 0U)
 /** @} */
 
-#if CH_USE_MEMCORE || defined(__DOXYGEN__)
+/*===========================================================================*/
+/* External declarations.                                                    */
+/*===========================================================================*/
 
 #ifdef __cplusplus
 extern "C" {
@@ -74,12 +97,16 @@ extern "C" {
   void _core_init(void);
   void *chCoreAlloc(size_t size);
   void *chCoreAllocI(size_t size);
-  size_t chCoreStatus(void);
+  size_t chCoreGetStatusX(void);
 #ifdef __cplusplus
 }
 #endif
 
-#endif /* CH_USE_MEMCORE */
+/*===========================================================================*/
+/* Module inline functions.                                                  */
+/*===========================================================================*/
+
+#endif /* CH_CFG_USE_MEMCORE == TRUE */
 
 #endif /* _CHMEMCORE_H_ */
 

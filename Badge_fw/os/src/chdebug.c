@@ -1,15 +1,14 @@
 /*
-    ChibiOS/RT - Copyright (C) 2006,2007,2008,2009,2010,
-                 2011,2012 Giovanni Di Sirio.
+    ChibiOS - Copyright (C) 2006..2015 Giovanni Di Sirio.
 
-    This file is part of ChibiOS/RT.
+    This file is part of ChibiOS.
 
-    ChibiOS/RT is free software; you can redistribute it and/or modify
+    ChibiOS is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
-    ChibiOS/RT is distributed in the hope that it will be useful,
+    ChibiOS is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
@@ -27,16 +26,48 @@
  *          - Runtime system state and call protocol check. The following
  *            panic messages can be generated:
  *            - SV#1, misplaced @p chSysDisable().
+ *              - Called from an ISR.
+ *              - Called from a critical zone.
+ *              .
  *            - SV#2, misplaced @p chSysSuspend()
+ *              - Called from an ISR.
+ *              - Called from a critical zone.
+ *              .
  *            - SV#3, misplaced @p chSysEnable().
+ *              - Called from an ISR.
+ *              - Called from a critical zone.
+ *              .
  *            - SV#4, misplaced @p chSysLock().
+ *              - Called from an ISR.
+ *              - Called from a critical zone.
+ *              .
  *            - SV#5, misplaced @p chSysUnlock().
- *            - SV#6, misplaced @p chSysLockFromIsr().
- *            - SV#7, misplaced @p chSysUnlockFromIsr().
+ *              - Called from an ISR.
+ *              - Not called from a critical zone.
+ *              .
+ *            - SV#6, misplaced @p chSysLockFromISR().
+ *              - Not called from an ISR.
+ *              - Called from a critical zone.
+ *              .
+ *            - SV#7, misplaced @p chSysUnlockFromISR().
+ *              - Not called from an ISR.
+ *              - Not called from a critical zone.
+ *              .
  *            - SV#8, misplaced @p CH_IRQ_PROLOGUE().
+ *              - Not called at ISR begin.
+ *              - Called from a critical zone.
+ *              .
  *            - SV#9, misplaced @p CH_IRQ_EPILOGUE().
+ *              - @p CH_IRQ_PROLOGUE() missing.
+ *              - Not called at ISR end.
+ *              - Called from a critical zone.
+ *              .
  *            - SV#10, misplaced I-class function.
+ *              - I-class function not called from within a critical zone.
+ *              .
  *            - SV#11, misplaced S-class function.
+ *              - S-class function not called from within a critical zone.
+ *              - Called from an ISR.
  *            .
  *          - Trace buffer.
  *          - Parameters check.
@@ -51,30 +82,40 @@
 #include "ch.h"
 
 /*===========================================================================*/
-/* System state checker related code and variables.                          */
+/* Module local definitions.                                                 */
 /*===========================================================================*/
 
-#if CH_DBG_SYSTEM_STATE_CHECK || defined(__DOXYGEN__)
+/*===========================================================================*/
+/* Module exported variables.                                                */
+/*===========================================================================*/
 
-/**
- * @brief   ISR nesting level.
- */
-cnt_t dbg_isr_cnt;
+/*===========================================================================*/
+/* Module local types.                                                       */
+/*===========================================================================*/
 
-/**
- * @brief   Lock nesting level.
- */
-cnt_t dbg_lock_cnt;
+/*===========================================================================*/
+/* Module local variables.                                                   */
+/*===========================================================================*/
 
+/*===========================================================================*/
+/* Module local functions.                                                   */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module exported functions.                                                */
+/*===========================================================================*/
+
+#if (CH_DBG_SYSTEM_STATE_CHECK == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Guard code for @p chSysDisable().
  *
  * @notapi
  */
-void dbg_check_disable(void) {
+void _dbg_check_disable(void) {
 
-  if ((dbg_isr_cnt != 0) || (dbg_lock_cnt != 0))
-    chDbgPanic("SV#1");
+  if ((ch.dbg.isr_cnt != (cnt_t)0) || (ch.dbg.lock_cnt != (cnt_t)0)) {
+    chSysHalt("SV#1");
+  }
 }
 
 /**
@@ -82,10 +123,11 @@ void dbg_check_disable(void) {
  *
  * @notapi
  */
-void dbg_check_suspend(void) {
+void _dbg_check_suspend(void) {
 
-  if ((dbg_isr_cnt != 0) || (dbg_lock_cnt != 0))
-    chDbgPanic("SV#2");
+  if ((ch.dbg.isr_cnt != (cnt_t)0) || (ch.dbg.lock_cnt != (cnt_t)0)) {
+    chSysHalt("SV#2");
+  }
 }
 
 /**
@@ -93,10 +135,11 @@ void dbg_check_suspend(void) {
  *
  * @notapi
  */
-void dbg_check_enable(void) {
+void _dbg_check_enable(void) {
 
-  if ((dbg_isr_cnt != 0) || (dbg_lock_cnt != 0))
-    chDbgPanic("SV#3");
+  if ((ch.dbg.isr_cnt != (cnt_t)0) || (ch.dbg.lock_cnt != (cnt_t)0)) {
+    chSysHalt("SV#3");
+  }
 }
 
 /**
@@ -104,11 +147,12 @@ void dbg_check_enable(void) {
  *
  * @notapi
  */
-void dbg_check_lock(void) {
+void _dbg_check_lock(void) {
 
-  if ((dbg_isr_cnt != 0) || (dbg_lock_cnt != 0))
-    chDbgPanic("SV#4");
-  dbg_enter_lock();
+  if ((ch.dbg.isr_cnt != (cnt_t)0) || (ch.dbg.lock_cnt != (cnt_t)0)) {
+    chSysHalt("SV#4");
+  }
+  _dbg_enter_lock();
 }
 
 /**
@@ -116,11 +160,12 @@ void dbg_check_lock(void) {
  *
  * @notapi
  */
-void dbg_check_unlock(void) {
+void _dbg_check_unlock(void) {
 
-  if ((dbg_isr_cnt != 0) || (dbg_lock_cnt <= 0))
-    chDbgPanic("SV#5");
-  dbg_leave_lock();
+  if ((ch.dbg.isr_cnt != (cnt_t)0) || (ch.dbg.lock_cnt <= (cnt_t)0)) {
+    chSysHalt("SV#5");
+  }
+  _dbg_leave_lock();
 }
 
 /**
@@ -128,11 +173,12 @@ void dbg_check_unlock(void) {
  *
  * @notapi
  */
-void dbg_check_lock_from_isr(void) {
+void _dbg_check_lock_from_isr(void) {
 
-  if ((dbg_isr_cnt <= 0) || (dbg_lock_cnt != 0))
-    chDbgPanic("SV#6");
-  dbg_enter_lock();
+  if ((ch.dbg.isr_cnt <= (cnt_t)0) || (ch.dbg.lock_cnt != (cnt_t)0)) {
+    chSysHalt("SV#6");
+  }
+  _dbg_enter_lock();
 }
 
 /**
@@ -140,11 +186,12 @@ void dbg_check_lock_from_isr(void) {
  *
  * @notapi
  */
-void dbg_check_unlock_from_isr(void) {
+void _dbg_check_unlock_from_isr(void) {
 
-  if ((dbg_isr_cnt <= 0) || (dbg_lock_cnt <= 0))
-    chDbgPanic("SV#7");
-  dbg_leave_lock();
+  if ((ch.dbg.isr_cnt <= (cnt_t)0) || (ch.dbg.lock_cnt <= (cnt_t)0)) {
+    chSysHalt("SV#7");
+  }
+  _dbg_leave_lock();
 }
 
 /**
@@ -152,12 +199,13 @@ void dbg_check_unlock_from_isr(void) {
  *
  * @notapi
  */
-void dbg_check_enter_isr(void) {
+void _dbg_check_enter_isr(void) {
 
   port_lock_from_isr();
-  if ((dbg_isr_cnt < 0) || (dbg_lock_cnt != 0))
-    chDbgPanic("SV#8");
-  dbg_isr_cnt++;
+  if ((ch.dbg.isr_cnt < (cnt_t)0) || (ch.dbg.lock_cnt != (cnt_t)0)) {
+    chSysHalt("SV#8");
+  }
+  ch.dbg.isr_cnt++;
   port_unlock_from_isr();
 }
 
@@ -166,12 +214,13 @@ void dbg_check_enter_isr(void) {
  *
  * @notapi
  */
-void dbg_check_leave_isr(void) {
+void _dbg_check_leave_isr(void) {
 
   port_lock_from_isr();
-  if ((dbg_isr_cnt <= 0) || (dbg_lock_cnt != 0))
-    chDbgPanic("SV#9");
-  dbg_isr_cnt--;
+  if ((ch.dbg.isr_cnt <= (cnt_t)0) || (ch.dbg.lock_cnt != (cnt_t)0)) {
+    chSysHalt("SV#9");
+  }
+  ch.dbg.isr_cnt--;
   port_unlock_from_isr();
 }
 
@@ -185,8 +234,9 @@ void dbg_check_leave_isr(void) {
  */
 void chDbgCheckClassI(void) {
 
-  if ((dbg_isr_cnt < 0) || (dbg_lock_cnt <= 0))
-    chDbgPanic("SV#10");
+  if ((ch.dbg.isr_cnt < (cnt_t)0) || (ch.dbg.lock_cnt <= (cnt_t)0)) {
+    chSysHalt("SV#10");
+  }
 }
 
 /**
@@ -199,30 +249,22 @@ void chDbgCheckClassI(void) {
  */
 void chDbgCheckClassS(void) {
 
-  if ((dbg_isr_cnt != 0) || (dbg_lock_cnt <= 0))
-    chDbgPanic("SV#11");
+  if ((ch.dbg.isr_cnt != (cnt_t)0) || (ch.dbg.lock_cnt <= (cnt_t)0)) {
+    chSysHalt("SV#11");
+  }
 }
 
-#endif /* CH_DBG_SYSTEM_STATE_CHECK */
+#endif /* CH_DBG_SYSTEM_STATE_CHECK == TRUE */
 
-/*===========================================================================*/
-/* Trace related code and variables.                                         */
-/*===========================================================================*/
-
-#if CH_DBG_ENABLE_TRACE || defined(__DOXYGEN__)
-/**
- * @brief   Public trace buffer.
- */
-ch_trace_buffer_t dbg_trace_buffer;
-
+#if (CH_DBG_ENABLE_TRACE == TRUE) || defined(__DOXYGEN__)
 /**
  * @brief   Trace circular buffer subsystem initialization.
  * @note    Internal use only.
  */
-void _trace_init(void) {
+void _dbg_trace_init(void) {
 
-  dbg_trace_buffer.tb_size = CH_TRACE_BUFFER_SIZE;
-  dbg_trace_buffer.tb_ptr = &dbg_trace_buffer.tb_buffer[0];
+  ch.dbg.trace_buffer.tb_size = CH_DBG_TRACE_BUFFER_SIZE;
+  ch.dbg.trace_buffer.tb_ptr = &ch.dbg.trace_buffer.tb_buffer[0];
 }
 
 /**
@@ -232,40 +274,17 @@ void _trace_init(void) {
  *
  * @notapi
  */
-void dbg_trace(Thread *otp) {
+void _dbg_trace(thread_t *otp) {
 
-  dbg_trace_buffer.tb_ptr->se_time   = chTimeNow();
-  dbg_trace_buffer.tb_ptr->se_tp     = currp;
-  dbg_trace_buffer.tb_ptr->se_wtobjp = otp->p_u.wtobjp;
-  dbg_trace_buffer.tb_ptr->se_state  = (uint8_t)otp->p_state;
-  if (++dbg_trace_buffer.tb_ptr >=
-      &dbg_trace_buffer.tb_buffer[CH_TRACE_BUFFER_SIZE])
-    dbg_trace_buffer.tb_ptr = &dbg_trace_buffer.tb_buffer[0];
+  ch.dbg.trace_buffer.tb_ptr->se_time   = chVTGetSystemTimeX();
+  ch.dbg.trace_buffer.tb_ptr->se_tp     = currp;
+  ch.dbg.trace_buffer.tb_ptr->se_wtobjp = otp->p_u.wtobjp;
+  ch.dbg.trace_buffer.tb_ptr->se_state  = (uint8_t)otp->p_state;
+  if (++ch.dbg.trace_buffer.tb_ptr >=
+      &ch.dbg.trace_buffer.tb_buffer[CH_DBG_TRACE_BUFFER_SIZE]) {
+    ch.dbg.trace_buffer.tb_ptr = &ch.dbg.trace_buffer.tb_buffer[0];
+  }
 }
 #endif /* CH_DBG_ENABLE_TRACE */
-
-/*===========================================================================*/
-/* Panic related code and variables.                                         */
-/*===========================================================================*/
-
-#if CH_DBG_ENABLED || defined(__DOXYGEN__)
-/**
- * @brief   Pointer to the panic message.
- * @details This pointer is meant to be accessed through the debugger, it is
- *          written once and then the system is halted.
- */
-const char *dbg_panic_msg;
-
-/**
- * @brief   Prints a panic message on the console and then halts the system.
- *
- * @param[in] msg       the pointer to the panic message string
- */
-//void chDbgPanic(const char *msg) {
-//
-//  dbg_panic_msg = msg;
-//  chSysHalt();
-//}
-#endif /* CH_DBG_ENABLED */
 
 /** @} */

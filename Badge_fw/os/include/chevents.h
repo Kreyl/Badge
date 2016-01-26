@@ -1,15 +1,14 @@
 /*
-    ChibiOS/RT - Copyright (C) 2006,2007,2008,2009,2010,
-                 2011,2012 Giovanni Di Sirio.
+    ChibiOS - Copyright (C) 2006..2015 Giovanni Di Sirio.
 
-    This file is part of ChibiOS/RT.
+    This file is part of ChibiOS.
 
-    ChibiOS/RT is free software; you can redistribute it and/or modify
+    ChibiOS is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
-    ChibiOS/RT is distributed in the hope that it will be useful,
+    ChibiOS is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
@@ -32,39 +31,70 @@
 #ifndef _CHEVENTS_H_
 #define _CHEVENTS_H_
 
-#if CH_USE_EVENTS || defined(__DOXYGEN__)
+#if (CH_CFG_USE_EVENTS == TRUE) || defined(__DOXYGEN__)
 
-typedef struct EventListener EventListener;
+/*===========================================================================*/
+/* Module constants.                                                         */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module pre-compile time settings.                                         */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Derived constants and error checks.                                       */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module data structures and types.                                         */
+/*===========================================================================*/
+
+typedef struct event_listener event_listener_t;
 
 /**
  * @brief   Event Listener structure.
  */
-struct EventListener {
-  EventListener         *el_next;       /**< @brief Next Event Listener
-                                                    registered on the Event
-                                                    Source.                 */
-  Thread                *el_listener;   /**< @brief Thread interested in the
-                                                    Event Source.           */
-  eventmask_t           el_mask;        /**< @brief Event flags mask associated
-                                                    by the thread to the Event
-                                                    Source.                 */
-  flagsmask_t           el_flags;       /**< @brief Flags added to the listener
-                                                    bu the event source.*/
+struct event_listener {
+  event_listener_t      *el_next;       /**< @brief Next Event Listener
+                                                    registered on the event
+                                                    source.                 */
+  thread_t              *el_listener;   /**< @brief Thread interested in the
+                                                    event source.           */
+  eventmask_t           el_events;      /**< @brief Events to be set in
+                                                    the listening thread.   */
+  eventflags_t          el_flags;       /**< @brief Flags added to the listener
+                                                    by the event source.    */
+  eventflags_t          el_wflags;      /**< @brief Flags that this listener
+                                                    interested in.          */
 };
 
 /**
  * @brief   Event Source structure.
  */
-typedef struct EventSource {
-  EventListener         *es_next;       /**< @brief First Event Listener
+typedef struct event_source {
+  event_listener_t      *es_next;       /**< @brief First Event Listener
                                                     registered on the Event
                                                     Source.                 */
-} EventSource;
+} event_source_t;
 
 /**
  * @brief   Event Handler callback function.
  */
-typedef void (*evhandler_t)(eventid_t);
+typedef void (*evhandler_t)(eventid_t id);
+
+/*===========================================================================*/
+/* Module macros.                                                            */
+/*===========================================================================*/
+
+/**
+ * @brief   All events allowed mask.
+ */
+#define ALL_EVENTS      ((eventmask_t)-1)
+
+/**
+ * @brief   Returns an event mask from an event identifier.
+ */
+#define EVENT_MASK(eid) ((eventmask_t)1 << (eventmask_t)(eid))
 
 /**
  * @brief   Data part of a static event source initializer.
@@ -81,71 +111,133 @@ typedef void (*evhandler_t)(eventid_t);
  *
  * @param name          the name of the event source variable
  */
-#define EVENTSOURCE_DECL(name) EventSource name = _EVENTSOURCE_DATA(name)
+#define EVENTSOURCE_DECL(name) event_source_t name = _EVENTSOURCE_DATA(name)
+
+/*===========================================================================*/
+/* External declarations.                                                    */
+/*===========================================================================*/
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+  void chEvtRegisterMaskWithFlags(event_source_t *esp,
+                                  event_listener_t *elp,
+                                  eventmask_t events,
+                                  eventflags_t wflags);
+  void chEvtUnregister(event_source_t *esp, event_listener_t *elp);
+  eventmask_t chEvtGetAndClearEvents(eventmask_t events);
+  eventmask_t chEvtAddEvents(eventmask_t events);
+  eventflags_t chEvtGetAndClearFlags(event_listener_t *elp);
+  eventflags_t chEvtGetAndClearFlagsI(event_listener_t *elp);
+  void chEvtSignal(thread_t *tp, eventmask_t events);
+  void chEvtSignalI(thread_t *tp, eventmask_t events);
+  void chEvtBroadcastFlags(event_source_t *esp, eventflags_t flags);
+  void chEvtBroadcastFlagsI(event_source_t *esp, eventflags_t flags);
+  void chEvtDispatch(const evhandler_t *handlers, eventmask_t events);
+#if (CH_CFG_OPTIMIZE_SPEED == TRUE) || (CH_CFG_USE_EVENTS_TIMEOUT == FALSE)
+  eventmask_t chEvtWaitOne(eventmask_t events);
+  eventmask_t chEvtWaitAny(eventmask_t events);
+  eventmask_t chEvtWaitAll(eventmask_t events);
+#endif
+#if CH_CFG_USE_EVENTS_TIMEOUT == TRUE
+  eventmask_t chEvtWaitOneTimeout(eventmask_t events, systime_t time);
+  eventmask_t chEvtWaitAnyTimeout(eventmask_t events, systime_t time);
+  eventmask_t chEvtWaitAllTimeout(eventmask_t events, systime_t time);
+#endif
+#ifdef __cplusplus
+}
+#endif
+
+#if (CH_CFG_OPTIMIZE_SPEED == FALSE) && (CH_CFG_USE_EVENTS_TIMEOUT == TRUE)
+#define chEvtWaitOne(mask) chEvtWaitOneTimeout(mask, TIME_INFINITE)
+#define chEvtWaitAny(mask) chEvtWaitAnyTimeout(mask, TIME_INFINITE)
+#define chEvtWaitAll(mask) chEvtWaitAllTimeout(mask, TIME_INFINITE)
+#endif
+
+/*===========================================================================*/
+/* Module inline functions.                                                  */
+/*===========================================================================*/
 
 /**
- * @brief   All events allowed mask.
+ * @brief   Initializes an Event Source.
+ * @note    This function can be invoked before the kernel is initialized
+ *          because it just prepares a @p event_source_t structure.
+ *
+ * @param[in] esp       pointer to the @p event_source_t structure
+ *
+ * @init
  */
-#define ALL_EVENTS      ((eventmask_t)-1)
+static inline void chEvtObjectInit(event_source_t *esp) {
+
+  esp->es_next = (event_listener_t *)esp;
+}
 
 /**
- * @brief   Returns an event mask from an event identifier.
+ * @brief     Registers an Event Listener on an Event Source.
+ * @details Once a thread has registered as listener on an event source it
+ *             will be notified of all events broadcasted there.
+ * @note     Multiple Event Listeners can specify the same bits to be ORed to
+ *             different threads.
+ *
+ * @param[in] esp       pointer to the @p event_source_t structure
+ * @param[out] elp      pointer to the @p event_listener_t structure
+ * @param[in] events    the mask of events to be ORed to the thread when
+ *                      the event source is broadcasted
+ *
+ * @api
  */
-#define EVENT_MASK(eid) ((eventmask_t)(1 << (eid)))
+static inline void chEvtRegisterMask(event_source_t *esp,
+                                     event_listener_t *elp,
+                                     eventmask_t events) {
 
-/**
- * @name    Macro Functions
- * @{
- */
+  chEvtRegisterMaskWithFlags(esp, elp, events, (eventflags_t)-1);
+}
+
 /**
  * @brief   Registers an Event Listener on an Event Source.
  * @note    Multiple Event Listeners can use the same event identifier, the
  *          listener will share the callback function.
  *
- * @param[in] esp       pointer to the  @p EventSource structure
- * @param[out] elp      pointer to the @p EventListener structure
- * @param[in] eid       numeric identifier assigned to the Event Listener. The
- *                      identifier is used as index for the event callback
- *                      function.
+ * @param[in] esp       pointer to the  @p event_source_t structure
+ * @param[out] elp      pointer to the @p event_listener_t structure
+ * @param[in] event     numeric identifier assigned to the Event Listener.
  *                      The value must range between zero and the size, in bit,
- *                      of the @p eventid_t type minus one.
+ *                      of the @p eventmask_t type minus one.
  *
  * @api
  */
-#define chEvtRegister(esp, elp, eid) \
-  chEvtRegisterMask(esp, elp, EVENT_MASK(eid))
+static inline void chEvtRegister(event_source_t *esp,
+                                 event_listener_t *elp,
+                                 eventid_t event) {
+
+  chEvtRegisterMask(esp, elp, EVENT_MASK(event));
+}
 
 /**
- * @brief   Initializes an Event Source.
- * @note    This function can be invoked before the kernel is initialized
- *          because it just prepares a @p EventSource structure.
+ * @brief   Verifies if there is at least one @p event_listener_t registered.
  *
- * @param[in] esp       pointer to the @p EventSource structure
- *
- * @init
- */
-#define chEvtInit(esp) \
-  ((esp)->es_next = (EventListener *)(void *)(esp))
-
-/**
- * @brief   Verifies if there is at least one @p EventListener registered.
- *
- * @param[in] esp       pointer to the @p EventSource structure
+ * @param[in] esp       pointer to the @p event_source_t structure
+ * @return              The event source status.
  *
  * @iclass
  */
-#define chEvtIsListeningI(esp) \
-  ((void *)(esp) != (void *)(esp)->es_next)
+static inline bool chEvtIsListeningI(event_source_t *esp) {
+
+  return (bool)(esp != (event_source_t *)esp->es_next);
+}
 
 /**
  * @brief   Signals all the Event Listeners registered on the specified Event
  *          Source.
  *
- * @param[in] esp       pointer to the @p EventSource structure
+ * @param[in] esp       pointer to the @p event_source_t structure
  *
  * @api
  */
-#define chEvtBroadcast(esp) chEvtBroadcastFlags(esp, 0)
+static inline void chEvtBroadcast(event_source_t *esp) {
+
+  chEvtBroadcastFlags(esp, (eventflags_t)0);
+}
 
 /**
  * @brief   Signals all the Event Listeners registered on the specified Event
@@ -155,50 +247,16 @@ typedef void (*evhandler_t)(eventid_t);
  *          interrupt handlers always reschedule on exit so an explicit
  *          reschedule must not be performed in ISRs.
  *
- * @param[in] esp       pointer to the @p EventSource structure
+ * @param[in] esp       pointer to the @p event_source_t structure
  *
  * @iclass
  */
-#define chEvtBroadcastI(esp) chEvtBroadcastFlagsI(esp, 0)
-/** @} */
+static inline void chEvtBroadcastI(event_source_t *esp) {
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-  void chEvtRegisterMask(EventSource *esp,
-                         EventListener *elp,
-                         eventmask_t mask);
-  void chEvtUnregister(EventSource *esp, EventListener *elp);
-  eventmask_t chEvtGetAndClearEvents(eventmask_t mask);
-  eventmask_t chEvtAddEvents(eventmask_t mask);
-  flagsmask_t chEvtGetAndClearFlags(EventListener *elp);
-  flagsmask_t chEvtGetAndClearFlagsI(EventListener *elp);
-  void chEvtSignal(Thread *tp, eventmask_t mask);
-  void chEvtSignalI(Thread *tp, eventmask_t mask);
-  void chEvtBroadcastFlags(EventSource *esp, flagsmask_t flags);
-  void chEvtBroadcastFlagsI(EventSource *esp, flagsmask_t flags);
-  void chEvtDispatch(const evhandler_t *handlers, eventmask_t mask);
-#if CH_OPTIMIZE_SPEED || !CH_USE_EVENTS_TIMEOUT
-  eventmask_t chEvtWaitOne(eventmask_t mask);
-  eventmask_t chEvtWaitAny(eventmask_t mask);
-  eventmask_t chEvtWaitAll(eventmask_t mask);
-#endif
-#if CH_USE_EVENTS_TIMEOUT
-  eventmask_t chEvtWaitOneTimeout(eventmask_t mask, systime_t time);
-  eventmask_t chEvtWaitAnyTimeout(eventmask_t mask, systime_t time);
-  eventmask_t chEvtWaitAllTimeout(eventmask_t mask, systime_t time);
-#endif
-#ifdef __cplusplus
+  chEvtBroadcastFlagsI(esp, (eventflags_t)0);
 }
-#endif
 
-#if !CH_OPTIMIZE_SPEED && CH_USE_EVENTS_TIMEOUT
-#define chEvtWaitOne(mask) chEvtWaitOneTimeout(mask, TIME_INFINITE)
-#define chEvtWaitAny(mask) chEvtWaitAnyTimeout(mask, TIME_INFINITE)
-#define chEvtWaitAll(mask) chEvtWaitAllTimeout(mask, TIME_INFINITE)
-#endif
-
-#endif /* CH_USE_EVENTS */
+#endif /* CH_CFG_USE_EVENTS == TRUE */
 
 #endif /* _CHEVENTS_H_ */
 

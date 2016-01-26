@@ -1,15 +1,14 @@
 /*
-    ChibiOS/RT - Copyright (C) 2006,2007,2008,2009,2010,
-                 2011,2012 Giovanni Di Sirio.
+    ChibiOS - Copyright (C) 2006..2015 Giovanni Di Sirio.
 
-    This file is part of ChibiOS/RT.
+    This file is part of ChibiOS.
 
-    ChibiOS/RT is free software; you can redistribute it and/or modify
+    ChibiOS is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
-    ChibiOS/RT is distributed in the hope that it will be useful,
+    ChibiOS is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
@@ -32,39 +31,39 @@
 #ifndef _CHCOND_H_
 #define _CHCOND_H_
 
-#if CH_USE_CONDVARS || defined(__DOXYGEN__)
+#if (CH_CFG_USE_CONDVARS == TRUE) || defined(__DOXYGEN__)
 
-/*
- * Module dependencies check.
- */
-#if !CH_USE_MUTEXES
-#error "CH_USE_CONDVARS requires CH_USE_MUTEXES"
+/*===========================================================================*/
+/* Module constants.                                                         */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module pre-compile time settings.                                         */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Derived constants and error checks.                                       */
+/*===========================================================================*/
+
+#if CH_CFG_USE_MUTEXES == FALSE
+#error "CH_CFG_USE_CONDVARS requires CH_CFG_USE_MUTEXES"
 #endif
+
+/*===========================================================================*/
+/* Module data structures and types.                                         */
+/*===========================================================================*/
 
 /**
- * @brief   CondVar structure.
+ * @brief   condition_variable_t structure.
  */
-typedef struct CondVar {
-  ThreadsQueue          c_queue;        /**< @brief CondVar threads queue.*/
-} CondVar;
+typedef struct condition_variable {
+  threads_queue_t       c_queue;            /**< @brief Condition variable
+                                                 threads queue.             */
+} condition_variable_t;
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-  void chCondInit(CondVar *cp);
-  void chCondSignal(CondVar *cp);
-  void chCondSignalI(CondVar *cp);
-  void chCondBroadcast(CondVar *cp);
-  void chCondBroadcastI(CondVar *cp);
-  msg_t chCondWait(CondVar *cp);
-  msg_t chCondWaitS(CondVar *cp);
-#if CH_USE_CONDVARS_TIMEOUT
-  msg_t chCondWaitTimeout(CondVar *cp, systime_t time);
-  msg_t chCondWaitTimeoutS(CondVar *cp, systime_t time);
-#endif
-#ifdef __cplusplus
-}
-#endif
+/*===========================================================================*/
+/* Module macros.                                                            */
+/*===========================================================================*/
 
 /**
  * @brief Data part of a static condition variable initializer.
@@ -73,7 +72,7 @@ extern "C" {
  *
  * @param[in] name      the name of the condition variable
  */
-#define _CONDVAR_DATA(name) {_THREADSQUEUE_DATA(name.c_queue)}
+#define _CONDVAR_DATA(name) {_THREADS_QUEUE_DATA(name.c_queue)}
 
 /**
  * @brief Static condition variable initializer.
@@ -82,9 +81,35 @@ extern "C" {
  *
  * @param[in] name      the name of the condition variable
  */
-#define CONDVAR_DECL(name) CondVar name = _CONDVAR_DATA(name)
+#define CONDVAR_DECL(name) condition_variable_t name = _CONDVAR_DATA(name)
 
-#endif /* CH_USE_CONDVARS */
+/*===========================================================================*/
+/* External declarations.                                                    */
+/*===========================================================================*/
+
+#ifdef __cplusplus
+extern "C" {
+#endif
+  void chCondObjectInit(condition_variable_t *cp);
+  void chCondSignal(condition_variable_t *cp);
+  void chCondSignalI(condition_variable_t *cp);
+  void chCondBroadcast(condition_variable_t *cp);
+  void chCondBroadcastI(condition_variable_t *cp);
+  msg_t chCondWait(condition_variable_t *cp);
+  msg_t chCondWaitS(condition_variable_t *cp);
+#if CH_CFG_USE_CONDVARS_TIMEOUT == TRUE
+  msg_t chCondWaitTimeout(condition_variable_t *cp, systime_t time);
+  msg_t chCondWaitTimeoutS(condition_variable_t *cp, systime_t time);
+#endif
+#ifdef __cplusplus
+}
+#endif
+
+/*===========================================================================*/
+/* Module inline functions.                                                  */
+/*===========================================================================*/
+
+#endif /* CH_CFG_USE_CONDVARS == TRUE */
 
 #endif /* _CHCOND_H_ */
 

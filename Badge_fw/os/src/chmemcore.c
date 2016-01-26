@@ -1,15 +1,14 @@
 /*
-    ChibiOS/RT - Copyright (C) 2006,2007,2008,2009,2010,
-                 2011,2012 Giovanni Di Sirio.
+    ChibiOS - Copyright (C) 2006..2015 Giovanni Di Sirio.
 
-    This file is part of ChibiOS/RT.
+    This file is part of ChibiOS.
 
-    ChibiOS/RT is free software; you can redistribute it and/or modify
+    ChibiOS is free software; you can redistribute it and/or modify
     it under the terms of the GNU General Public License as published by
     the Free Software Foundation; either version 3 of the License, or
     (at your option) any later version.
 
-    ChibiOS/RT is distributed in the hope that it will be useful,
+    ChibiOS is distributed in the hope that it will be useful,
     but WITHOUT ANY WARRANTY; without even the implied warranty of
     MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
     GNU General Public License for more details.
@@ -39,17 +38,37 @@
  *          This allocator, alone, is also useful for very simple
  *          applications that just require a simple way to get memory
  *          blocks.
- * @pre     In order to use the core memory manager APIs the @p CH_USE_MEMCORE
+ * @pre     In order to use the core memory manager APIs the @p CH_CFG_USE_MEMCORE
  *          option must be enabled in @p chconf.h.
  * @{
  */
 
 #include "ch.h"
 
-#if CH_USE_MEMCORE || defined(__DOXYGEN__)
+#if (CH_CFG_USE_MEMCORE == TRUE) || defined(__DOXYGEN__)
+
+/*===========================================================================*/
+/* Module exported variables.                                                */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module local types.                                                       */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module local variables.                                                   */
+/*===========================================================================*/
 
 static uint8_t *nextmem;
 static uint8_t *endmem;
+
+/*===========================================================================*/
+/* Module local functions.                                                   */
+/*===========================================================================*/
+
+/*===========================================================================*/
+/* Module exported functions.                                                */
+/*===========================================================================*/
 
 /**
  * @brief   Low level memory manager initialization.
@@ -57,15 +76,21 @@ static uint8_t *endmem;
  * @notapi
  */
 void _core_init(void) {
-#if CH_MEMCORE_SIZE == 0
+#if CH_CFG_MEMCORE_SIZE == 0
   extern uint8_t __heap_base__[];
   extern uint8_t __heap_end__[];
+
+  /*lint -save -e9033 [10.8] Required cast operations.*/
   nextmem = (uint8_t *)MEM_ALIGN_NEXT(__heap_base__);
   endmem = (uint8_t *)MEM_ALIGN_PREV(__heap_end__);
+  /*lint restore*/
 #else
-  static stkalign_t buffer[MEM_ALIGN_NEXT(CH_MEMCORE_SIZE)/MEM_ALIGN_SIZE];
+  static stkalign_t buffer[MEM_ALIGN_NEXT(CH_CFG_MEMCORE_SIZE) /
+                           MEM_ALIGN_SIZE];
+
   nextmem = (uint8_t *)&buffer[0];
-  endmem = (uint8_t *)&buffer[MEM_ALIGN_NEXT(CH_MEMCORE_SIZE)/MEM_ALIGN_SIZE];
+  endmem = (uint8_t *)&buffer[MEM_ALIGN_NEXT(CH_CFG_MEMCORE_SIZE) /
+                              MEM_ALIGN_SIZE];
 #endif
 }
 
@@ -87,6 +112,7 @@ void *chCoreAlloc(size_t size) {
   chSysLock();
   p = chCoreAllocI(size);
   chSysUnlock();
+
   return p;
 }
 
@@ -108,10 +134,14 @@ void *chCoreAllocI(size_t size) {
   chDbgCheckClassI();
 
   size = MEM_ALIGN_NEXT(size);
-  if ((size_t)(endmem - nextmem) < size)
+  /*lint -save -e9033 [10.8] The cast is safe.*/
+  if ((size_t)(endmem - nextmem) < size) {
+  /*lint -restore*/
     return NULL;
+  }
   p = nextmem;
   nextmem += size;
+
   return p;
 }
 
@@ -120,12 +150,14 @@ void *chCoreAllocI(size_t size) {
  *
  * @return              The size, in bytes, of the free core memory.
  *
- * @api
+ * @xclass
  */
-size_t chCoreStatus(void) {
+size_t chCoreGetStatusX(void) {
 
+  /*lint -save -e9033 [10.8] The cast is safe.*/
   return (size_t)(endmem - nextmem);
+  /*lint -restore*/
 }
-#endif /* CH_USE_MEMCORE */
+#endif /* CH_CFG_USE_MEMCORE == TRUE */
 
 /** @} */
