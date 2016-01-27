@@ -126,8 +126,8 @@ void Lcd_t::Init() {
     RsHi();
 
     // Read ID
-    uint16_t r = ReadReg(0x00);
-    Uart.Printf("rslt=%X\r", r);
+//    uint16_t r = ReadReg(0x00);
+//    Uart.Printf("rslt=%X\r", r);
 
     // Send init Cmds
     for(uint32_t i=0; i<INIT_SEQ_CNT; i++) {
@@ -136,7 +136,21 @@ void Lcd_t::Init() {
         if(InitData[i].Delay > 0) chThdSleepMilliseconds(InitData[i].Delay);
     }
 
-    Cls(clGreen);
+//    Cls(clGreen);
+
+//    GoTo(0, 0);
+    SetBounds(80, 100, 20, 100);
+    WriteReg(0x21, 20);
+//    GoTo(80, 20);
+
+    uint8_t ClrUpper = 0xF0;
+    uint8_t ClrLower = 0x0F;
+    // Fill LCD
+    PrepareToWriteGRAM();
+    for(uint32_t i=0; i<(100 * 100); i++) {
+        WriteByte(ClrUpper);
+        WriteByte(ClrLower);
+    }
 }
 
 void Lcd_t::Shutdown(void) {
@@ -193,25 +207,6 @@ void Lcd_t::PrepareToWriteGRAM() {  // Write RegID = 0x22
 
 /*
 // ================================= Printf ====================================
-__attribute__ ((always_inline)) static inline void SetBounds(uint8_t Left, uint8_t Width, uint8_t Top, uint8_t Height) {
-    // Set column bounds
-    WriteByte(0x2A);
-    DC_Hi();
-    WriteByte(0x00);                    // }
-    WriteByte(LCD_X_0+Left);            // } Col addr start
-    WriteByte(0x00);                    // }
-    WriteByte(LCD_X_0+Left+Width-1);    // } Col addr end
-    DC_Lo();
-    // Set row bounds
-    WriteByte(0x2B);
-    DC_Hi();
-    WriteByte(0x00);                    // }
-    WriteByte(LCD_Y_0+Top);             // } Row addr start = 0
-    WriteByte(0x00);                    // }
-    WriteByte(LCD_Y_0+Top+Height-1);    // } Row addr end
-    DC_Lo();
-}
-
 void Lcd_t::PutChar(char c) {
     char *PFont = (char*)Font8x8;  // Font to use
     // Read font params
@@ -276,6 +271,20 @@ void Lcd_t::Printf(uint8_t x, uint8_t y, const Color_t ForeClr, const Color_t Bc
 void Lcd_t::GoTo(uint16_t x, uint16_t y) {
     WriteReg(0x20, x);     // GRAM Address Set (Horizontal Address) (R20h)
     WriteReg(0x21, y);     // GRAM Address Set (Vertical Address) (R21h)
+}
+
+void Lcd_t::SetBounds(uint16_t Left, uint16_t Width, uint16_t Top, uint16_t Height) {
+    uint16_t XEndAddr = Left + Width  - 1;
+    uint16_t YEndAddr = Top  + Height - 1;
+
+    Uart.Printf("xs=%u, xe=%u; ys=%u, ye=%u\r", Left, XEndAddr, Top, YEndAddr);
+//    if(XEndAddr > 0xEF) XEndAddr = 0xEF;
+//    if(YEndAddr > 0x13F) YEndAddr = 0x13F;
+    // Write bounds
+    WriteReg(0x50, Left);
+    WriteReg(0x51, XEndAddr);
+    WriteReg(0x52, Top);
+    WriteReg(0x53, YEndAddr);
 }
 
 void Lcd_t::Cls(Color_t Color) {

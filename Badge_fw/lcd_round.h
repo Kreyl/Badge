@@ -17,8 +17,8 @@
 
 //#define LCD_X_0             1   // }
 //#define LCD_Y_0             2   // } Zero pixels are shifted
-#define LCD_H               240 // }
-#define LCD_W               320 // } Pixels count
+#define LCD_H               320 // }
+#define LCD_W               240 // } Pixels count
 #define LCD_TOP_BRIGHTNESS  100 // i.e. 100%
 
 #define BUF_SZ  72
@@ -33,6 +33,7 @@ private:
     uint16_t ReadReg(uint8_t AReg);
     void GoTo(uint16_t x, uint16_t y);
     void PrepareToWriteGRAM();
+    void SetBounds(uint16_t Left, uint16_t Width, uint16_t Top, uint16_t Height);
 //    FIL IFile;
 //    char IBuf[BUF_SZ];
     uint16_t IBrightness;

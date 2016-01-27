@@ -12,3 +12,4 @@ Badge_hw/Badge.dsn
 *.gto
 *.drl
 Badge_fw/.settings/language.settings.xml
+Badge_hw/Badge.csv
