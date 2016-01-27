@@ -1,49 +1,87 @@
-#include <lcd_round.h>
-
+#include "lcd_round.h"
 #include "kl_lib.h"
 #include <string.h>
 #include <stdarg.h>
 #include "core_cmInstr.h"
+#include "uart.h"
 
 //#include "lcdFont8x8.h"
 #include <string.h>
 
 // Variables
 Lcd_t Lcd;
-/*
-// Pin driving functions
-#define LCD_DELAY()   //DelayLoop(7)
-static inline void XRES_Hi() { PinSet  (LCD_GPIO, LCD_XRES); LCD_DELAY(); }
-static inline void XRES_Lo() { PinClear(LCD_GPIO, LCD_XRES); LCD_DELAY(); }
-static inline void XCS_Hi () { PinSet  (LCD_GPIO, LCD_XCS);  LCD_DELAY(); }
-static inline void XCS_Lo () { PinClear(LCD_GPIO, LCD_XCS);  LCD_DELAY(); }
-__attribute__ ((always_inline)) static inline void DC_Hi()  { PinSet  (LCD_GPIO, LCD_DC);   LCD_DELAY(); }
-__attribute__ ((always_inline)) static inline void DC_Lo()  { PinClear(LCD_GPIO, LCD_DC);   LCD_DELAY(); }
-static inline void WR_Hi()   { PinSet  (LCD_GPIO, LCD_WR);   LCD_DELAY(); }
-static inline void RD_Hi()   { PinSet  (LCD_GPIO, LCD_RD);   LCD_DELAY(); }
-//__attribute__ ((always_inline)) static inline void RD_Lo()  { PinClear(LCD_GPIO, LCD_RD);   LCD_DELAY}
 
-*/
+#if 1 // ==== Pin driving functions ====
+#define RstHi() { PinSet(LCD_GPIO, LCD_RST);   }
+#define RstLo() { PinClear(LCD_GPIO, LCD_RST); }
+#define CsHi()  { PinSet(LCD_GPIO, LCD_CS);    }
+#define CsLo()  { PinClear(LCD_GPIO, LCD_CS);  }
+#define RsHi()  { PinSet(LCD_GPIO, LCD_RS);    }
+#define RsLo()  { PinClear(LCD_GPIO, LCD_RS);  }
+#define WrHi()  { PinSet(LCD_GPIO, LCD_WR);    }
+#define RdHi()  { PinSet(LCD_GPIO, LCD_RD);    }
+#define RdLo()  { PinClear(LCD_GPIO, LCD_RD);  }
+
+#define SetReadMode()   LCD_GPIO->MODER &= LCD_MODE_MSK_READ
+#define SetWriteMode()  LCD_GPIO->MODER |= LCD_MODE_MSK_WRITE
+
+// Bus operations
+__attribute__ ((always_inline)) static inline void WriteByte(uint8_t Byte) {
+        LCD_GPIO->BRR  = 0xFF;        /* Clear bus */
+        LCD_GPIO->BSRR = Byte;        /* Place data on bus */
+        LCD_GPIO->BRR  = (1<<LCD_WR); /* WR Low */
+        LCD_GPIO->BSRR = (1<<LCD_WR); /* WR high */
+}
+#endif
 
 void Lcd_t::Init() {
     // Backlight
     Led1.Init();
     Led2.Init();
+    // Pins
+    PinSetupOut(LCD_GPIO, LCD_RST, omPushPull, pudNone, psMedium);
+    PinSetupOut(LCD_GPIO, LCD_CS,  omPushPull, pudNone, psMedium);
+    PinSetupOut(LCD_GPIO, LCD_RS,  omPushPull, pudNone, psMedium);
+    PinSetupOut(LCD_GPIO, LCD_WR,  omPushPull, pudNone, psMedium);
+    PinSetupOut(LCD_GPIO, LCD_RD,  omPushPull, pudNone, psMedium);
+    PinSetupOut(LCD_GPIO, LCD_IMO, omPushPull, pudNone, psMedium);
+    // Configure data bus as outputs
+    for(uint8_t i=0; i<8; i++) PinSetupOut(LCD_GPIO, i, omPushPull, pudNone, psHigh);
+
+    // ======= Init LCD =======
+    // Initial signals
+    PinSet(LCD_GPIO, LCD_IMO);  // Select 8-bit parallel bus
+    RstHi();
+    CsHi();
+    RdHi();
+    WrHi();
+    RsHi();
+    // Reset LCD
+    RstLo();
+    chThdSleepMilliseconds(54);
+    RstHi();
+    CsLo(); // Stay selected forever
+    // Let it to wake up
+    chThdSleepMilliseconds(306);
+    // p.107 "Make sure to execute data transfer synchronization after reset operation before transferring instruction"
+    RsLo();
+    WriteByte(0x00);
+    WriteByte(0x00);
+    WriteByte(0x00);
+    WriteByte(0x00);
+    RsHi();
+
+    // Read ID
+    uint16_t r = ReadReg(0x01);
+    Uart.Printf("%X\r", r);
+
+    WriteReg(0x01, 0x0500);
+    r = ReadReg(0x01);
+    Uart.Printf("%X\r", r);
+
+    // Send init Cmds
 
 
-    // Init pins if not setup
-//    if(Brightness == 0) {
-//        BckLt.Init(LCD_BCKLT_GPIO, LCD_BCKLT_PIN, LCD_BCKLT_TMR, LCD_BCKLT_CHNL, LCD_TOP_BRIGHTNESS);
-//        PinSetupOut(LCD_GPIO, LCD_DC,   omPushPull, pudNone, ps100MHz);
-//        PinSetupOut(LCD_GPIO, LCD_WR,   omPushPull, pudNone, ps100MHz);
-//        PinSetupOut(LCD_GPIO, LCD_RD,   omPushPull, pudNone, ps100MHz);
-//        PinSetupOut(LCD_GPIO, LCD_XRES, omPushPull, pudNone, ps100MHz);
-//        PinSetupOut(LCD_GPIO, LCD_XCS,  omPushPull, pudNone, ps100MHz);
-//        // Configure data bus as outputs
-//        for(uint8_t i=0; i<8; i++) PinSetupOut(LCD_GPIO, i, omPushPull, pudNone, ps100MHz);
-//        Brightness = LCD_TOP_BRIGHTNESS;
-//    }
-//    // ======= Init LCD =======
 //    XCS_Hi();
 //    XRES_Lo();  // }
 //    XRES_Hi();  // } Reset display
@@ -69,16 +107,48 @@ void Lcd_t::Init() {
 //    SetBrightness(Brightness);
 }
 
-
 void Lcd_t::Shutdown(void) {
 //    XRES_Lo();
 //    XCS_Lo();
 //    BckLt.Off();
 }
 
+
+void Lcd_t::WriteReg(uint16_t AReg, uint16_t AData) {
+    // Write register addr
+    RsLo();
+    WriteByte((uint8_t)(AReg >> 8));
+    WriteByte((uint8_t)(AReg & 0xFF));
+    RsHi();
+    // Write data
+    WriteByte((uint8_t)(AData >> 8));
+    WriteByte((uint8_t)(AData & 0xFF));
+}
+
+uint16_t Lcd_t::ReadReg(uint16_t AReg) {
+    // Write register addr
+    RsLo();
+    WriteByte((uint8_t)(AReg >> 8));
+    WriteByte((uint8_t)(AReg & 0xFF));
+    RsHi();
+    // Read data
+    SetReadMode();
+    RdLo();
+    uint16_t rUp = LCD_GPIO->IDR;
+    RdHi();
+    rUp <<= 8;
+    RdLo();
+    uint16_t rLo = LCD_GPIO->IDR;
+    RdHi();
+    rLo &= 0x00FF;
+    SetWriteMode();
+    return (rUp | rLo);
+}
+
 void Lcd_t::SetBrightness(uint16_t ABrightness) {
     Led1.Set(ABrightness);
     Led2.Set(ABrightness);
+    IBrightness = ABrightness;
 }
 
 /*

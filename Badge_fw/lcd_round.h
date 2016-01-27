@@ -39,8 +39,9 @@ private:
 
     uint16_t IX, IY;
     Color_t IForeClr, IBckClr;
-    void WriteCmd(uint8_t ACmd);
-    void WriteCmd(uint8_t ACmd, uint8_t AData);
+    void WriteReg(uint16_t AReg, uint16_t AData);
+    uint16_t ReadReg(uint16_t AReg);
+//    void WriteCmd(uint8_t ACmd, uint8_t AData);
 //    FIL IFile;
     char IBuf[BUF_SZ];
     uint16_t IBrightness;

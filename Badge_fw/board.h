@@ -51,9 +51,8 @@
 #define LCD_WR          11
 #define LCD_RD          12
 #define LCD_IMO         13
-//#define LCD_MASK_WR     (0x00FF | (1<<LCD_WR))  // clear bus and set WR low
-//#define LCD_MODE_READ   0xFFFF0000
-//#define LCD_MODE_WRITE  0x00005555
+#define LCD_MODE_MSK_READ   0xFFFF0000
+#define LCD_MODE_MSK_WRITE  0x00005555
 #define LCD_BCKLT_GPIO  GPIOB
 #define LCD_BCKLT_PIN1  14
 #define LCD_BCKLT_PIN2  15

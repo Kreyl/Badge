@@ -5,8 +5,7 @@
  *      Author: kreyl
  */
 
-#ifndef KL_LIB_
-#define KL_LIB_
+#pragma once
 
 #include "ch.h"
 #include "hal.h"
@@ -393,10 +392,10 @@ enum PinAF_t {
 static inline void PinSet    (GPIO_TypeDef *PGpioPort, const uint16_t APinNumber) { PGpioPort->BSRRL = (uint16_t)(1<<APinNumber); }
 static inline void PinClear  (GPIO_TypeDef *PGpioPort, const uint16_t APinNumber) { PGpioPort->BSRRH = (uint16_t)(1<<APinNumber); }
 #elif defined STM32F0XX || defined STM32F10X_LD_VL
-static inline void PinSet    (GPIO_TypeDef *PGpioPort, const uint16_t APinNumber) { PGpioPort->BSRR = (uint32_t)(1<<APinNumber); }
-static inline void PinClear  (GPIO_TypeDef *PGpioPort, const uint16_t APinNumber) { PGpioPort->BRR  = (uint32_t)(1<<APinNumber); }
+#define PinSet(PGpio, APin)     PGpio->BSRR = ((uint32_t)(1 << (APin)))
+#define PinClear(PGpio, APin)   PGpio->BRR  = ((uint32_t)(1 << (APin)))
 #endif
-static inline void PinToggle (GPIO_TypeDef *PGpioPort, const uint16_t APinNumber) { PGpioPort->ODR  ^= (uint16_t)(1<<APinNumber); }
+#define PinToggle(PGpio, APin)  PGpio->ODR  ^= ((uint16_t)(1 << (APin)))
 
 // Check state
 static inline bool PinIsSet(GPIO_TypeDef *PGpioPort, const uint16_t APinNumber) { return (PGpioPort->IDR & (uint32_t)(1<<APinNumber)); }
@@ -957,5 +956,3 @@ public:
 
 
 #endif
-
-#endif /* KL_LIB */
