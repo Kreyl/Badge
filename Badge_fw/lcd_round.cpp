@@ -11,6 +11,59 @@
 // Variables
 Lcd_t Lcd;
 
+struct RegData_t {
+    uint16_t Reg, Data;
+    uint32_t Delay;
+};
+const RegData_t InitData[] = {
+//        {0xA4, 0x0001, 10}, // NVM calibration
+//        {0x60, 0x2700, 0},  // (def) Driver output control: number of lines = 320, gate start = 0
+//        {0x08, 0x0808, 0},  // (def) front and back porch period
+        // Gamma correction
+ /*       {0x30, 0x0214, 0},
+        {0x31, 0x3715, 0},
+        {0x32, 0x0604, 0},
+        {0x33, 0x0E16, 0},
+        {0x34, 0x2211, 0},
+        {0x35, 0x1500, 0},
+        {0x36, 0x8507, 0},
+        {0x37, 0x1407, 0},
+        {0x38, 0x1403, 0},
+        {0x39, 0x0020, 0},*/
+
+//        {0x90, 0x0015, 0},  // (def 0x0111) division 1/1, line period 21clk
+//        {0x10, 0x0410, 0},
+//        {0x11, 0x0237, 0},
+
+        {0x29, 0x0046, 0},
+        {0x2A, 0x0046, 0},
+        {0x07, 0x0000, 0},
+        {0x12, 0x0189, 0},
+        {0x13, 0x1100, 150},
+
+        {0x12, 0x01B9, 0},
+        {0x01, 0x0100, 0},
+        {0x02, 0x0200, 0},
+        {0x03, 0x1030, 0},
+        {0x09, 0x0001, 0},
+        {0x0A, 0x0000, 0},
+        {0x0D, 0x0000, 0},
+        {0x0E, 0x0030, 0},
+        {0x50, 0x0000, 0},
+        {0x51, 0x00EF, 0},
+        {0x52, 0x0000, 0},
+        {0x53, 0x013F, 0},
+        {0x61, 0x0001, 0},
+        {0x6A, 0x0000, 0},
+        {0x80, 0x0000, 0},
+        {0x81, 0x0000, 0},
+        {0x82, 0x005F, 0},
+        {0x92, 0x0100, 0},
+        {0x93, 0x0701, 80},
+        {0x07, 0x0100, 0},
+};
+#define INIT_SEQ_CNT    countof(InitData)
+
 #if 1 // ==== Pin driving functions ====
 #define RstHi() { PinSet(LCD_GPIO, LCD_RST);   }
 #define RstLo() { PinClear(LCD_GPIO, LCD_RST); }
@@ -38,6 +91,7 @@ void Lcd_t::Init() {
     // Backlight
     Led1.Init();
     Led2.Init();
+    SetBrightness(100);
     // Pins
     PinSetupOut(LCD_GPIO, LCD_RST, omPushPull, pudNone, psMedium);
     PinSetupOut(LCD_GPIO, LCD_CS,  omPushPull, pudNone, psMedium);
@@ -72,39 +126,17 @@ void Lcd_t::Init() {
     RsHi();
 
     // Read ID
-    uint16_t r = ReadReg(0x01);
-    Uart.Printf("%X\r", r);
-
-    WriteReg(0x01, 0x0500);
-    r = ReadReg(0x01);
-    Uart.Printf("%X\r", r);
+    uint16_t r = ReadReg(0x00);
+    Uart.Printf("rslt=%X\r", r);
 
     // Send init Cmds
+    for(uint32_t i=0; i<INIT_SEQ_CNT; i++) {
+        WriteReg(InitData[i].Reg, InitData[i].Data);
+//        Uart.Printf("%X %X\r", InitData[i].Reg, InitData[i].Data);
+        if(InitData[i].Delay > 0) chThdSleepMilliseconds(InitData[i].Delay);
+    }
 
-
-//    XCS_Hi();
-//    XRES_Lo();  // }
-//    XRES_Hi();  // } Reset display
-//    chThdSleepMilliseconds(4);
-//    DC_Lo();    // Command mode by default
-//    WR_Hi();    // Default hi
-//    RD_Hi();    // Default hi
-//    XCS_Lo();   // Interface is always enabled
-//
-//    WriteCmd(0x11);         // Sleep out
-//    WriteCmd(0x13);         // Normal Display Mode ON
-//#ifdef LCD_12BIT
-//    WriteCmd(0x3A, 0x03);   // Pixel format: VIPF=0(undef), IFPF=12 bit per pixel
-//#else
-//    WriteCmd(0x3A, 0x05);   // Pixel format: VIPF=0(undef), IFPF=16 bit per pixel
-//#endif
-//    WriteCmd(0x29);         // Display on
-//    WriteCmd(0x20);         // Inv off
-//    WriteCmd(0x13);         // Normal Display Mode ON
-//    WriteCmd(0x36, 0xA0);   // Display mode: Y inv, X none-inv, Row/Col exchanged
-//
-//    Cls(clBlack);
-//    SetBrightness(Brightness);
+    Cls(clGreen);
 }
 
 void Lcd_t::Shutdown(void) {
@@ -113,23 +145,29 @@ void Lcd_t::Shutdown(void) {
 //    BckLt.Off();
 }
 
+void Lcd_t::SetBrightness(uint16_t ABrightness) {
+    Led1.Set(ABrightness);
+    Led2.Set(ABrightness);
+    IBrightness = ABrightness;
+}
 
-void Lcd_t::WriteReg(uint16_t AReg, uint16_t AData) {
+#if 1 // ============================ Local use ================================
+void Lcd_t::WriteReg(uint8_t AReg, uint16_t AData) {
     // Write register addr
     RsLo();
-    WriteByte((uint8_t)(AReg >> 8));
-    WriteByte((uint8_t)(AReg & 0xFF));
+    WriteByte(0);   // No addr > 0xFF
+    WriteByte(AReg);
     RsHi();
     // Write data
     WriteByte((uint8_t)(AData >> 8));
     WriteByte((uint8_t)(AData & 0xFF));
 }
 
-uint16_t Lcd_t::ReadReg(uint16_t AReg) {
+uint16_t Lcd_t::ReadReg(uint8_t AReg) {
     // Write register addr
     RsLo();
-    WriteByte((uint8_t)(AReg >> 8));
-    WriteByte((uint8_t)(AReg & 0xFF));
+    WriteByte(0);
+    WriteByte(AReg);
     RsHi();
     // Read data
     SetReadMode();
@@ -145,49 +183,15 @@ uint16_t Lcd_t::ReadReg(uint16_t AReg) {
     return (rUp | rLo);
 }
 
-void Lcd_t::SetBrightness(uint16_t ABrightness) {
-    Led1.Set(ABrightness);
-    Led2.Set(ABrightness);
-    IBrightness = ABrightness;
-}
-
-/*
-#if 1 // ============================ Local use ================================
-__attribute__ ((always_inline)) static inline void ModeWrite() {
-    LCD_GPIO->MODER |= LCD_MODE_WRITE;
-}
-__attribute__ ((always_inline)) static inline void ModeRead() {
-    LCD_GPIO->MODER &= LCD_MODE_READ;
-}
-
-__attribute__ ((always_inline)) static inline void WriteByte(uint8_t Byte) {
-    LCD_GPIO->BSRRH = LCD_MASK_WR;  // Clear bus and set WR Low
-    LCD_GPIO->BSRRL = Byte;         // Place data on bus
-    LCD_GPIO->BSRRL = (1<<LCD_WR);  // WR high
-}
-__attribute__ ((always_inline)) static inline uint8_t ReadByte() {
-    uint16_t w;
-    LCD_GPIO->BSRRH = (1<<LCD_RD);  // RD Low
-    LCD_GPIO->BSRRL = (1<<LCD_RD);  // RD high
-    w = LCD_GPIO->IDR;              // Read data from bus
-    return (uint8_t)w;
-}
-
-// ==== WriteCmd ====
-void Lcd_t::WriteCmd(uint8_t ACmd) {
-    // DC is lo by default => Cmd by default
-    WriteByte(ACmd);    // Send Cmd byte
-}
-void Lcd_t::WriteCmd(uint8_t ACmd, uint8_t AData) {
-    // DC is lo by default => Cmd by default
-    WriteByte(ACmd);    // Send Cmd byte
-    // Send data
-    DC_Hi();
-    WriteByte(AData);
-    DC_Lo();
+void Lcd_t::PrepareToWriteGRAM() {  // Write RegID = 0x22
+    RsLo();
+    WriteByte(0);
+    WriteByte(0x22);
+    RsHi();
 }
 #endif
 
+/*
 // ================================= Printf ====================================
 __attribute__ ((always_inline)) static inline void SetBounds(uint8_t Left, uint8_t Width, uint8_t Top, uint8_t Height) {
     // Set column bounds
@@ -267,41 +271,27 @@ void Lcd_t::Printf(uint8_t x, uint8_t y, const Color_t ForeClr, const Color_t Bc
     kl_vsprintf(FLcdPutChar, 20, S, args);
     va_end(args);
 }
-
-#if 1 // ============================= Graphics ================================
-void Lcd_t::Cls(Color_t Color) {
-    SetBounds(0, LCD_W, 0, LCD_H);
-    // Prepare variables
-    uint16_t Clr = (uint16_t)Color;
-#ifdef LCD_12BIT
-    uint32_t Cnt = LCD_W * LCD_H / 2;       // Two pixels at one time
-    uint8_t b1 = (uint8_t)(Clr >> 4);       // RRRR-GGGG
-    uint8_t b2 = (uint8_t)(((Clr & 0x00F) << 4) | (Clr >> 8));  // BBBB-RRRR
-    uint8_t b3 = (uint8_t)(Clr & 0x0FF);    // GGGG-BBBB
-    // Write RAM
-    WriteByte(0x2C);    // Memory write
-    DC_Hi();
-    for(uint32_t i=0; i<Cnt; i++) {
-        WriteByte(b1);
-        WriteByte(b2);
-        WriteByte(b3);
-    }
-    DC_Lo();
-#else
-    uint32_t Cnt = LCD_W * LCD_H;
-    uint8_t b1 = (Clr >> 8) & 0x00FF;
-    uint8_t b2 =  Clr       & 0x00FF;
-    // Write RAM
-    WriteByte(0x2C);    // Memory write
-    DC_Hi();
-    for(uint32_t i=0; i<Cnt; i++) {
-        WriteByte(b1);
-        WriteByte(b2);
-    }
-    DC_Lo();
-#endif
+*/
+//#if 1 // ============================= Graphics ================================
+void Lcd_t::GoTo(uint16_t x, uint16_t y) {
+    WriteReg(0x20, x);     // GRAM Address Set (Horizontal Address) (R20h)
+    WriteReg(0x21, y);     // GRAM Address Set (Vertical Address) (R21h)
 }
 
+void Lcd_t::Cls(Color_t Color) {
+    GoTo(0, 0);
+    // Prepare variables
+    uint8_t ClrUpper = Color.RGBTo565_HiByte();
+    uint8_t ClrLower = Color.RGBTo565_LoByte();
+//    Uart.Printf("%X %X\r", ClrUpper, ClrLower);
+    // Fill LCD
+    PrepareToWriteGRAM();
+    for(uint32_t i=0; i<(LCD_H * LCD_W); i++) {
+        WriteByte(ClrUpper);
+        WriteByte(ClrLower);
+    }
+}
+/*
 void Lcd_t::GetBitmap(uint8_t x0, uint8_t y0, uint8_t Width, uint8_t Height, uint16_t *PBuf) {
     SetBounds(x0, x0+Width, y0, y0+Height);
     // Prepare variables
