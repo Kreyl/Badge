@@ -28,6 +28,8 @@ int main(void) {
 
     Lcd.Init();
     Lcd.SetBrightness(100);
+    Lcd.PutBitmap(80, 20, 100, 150, NULL);
+
 
 //    PinSetupOut(GPIOB, 15, omPushPull);
 //    PinClear(GPIOB, 15);
