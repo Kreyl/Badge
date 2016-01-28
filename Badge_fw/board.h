@@ -26,18 +26,12 @@
 #define UART_RX_PIN     10
 #define UART_AF         AF1
 
-// LEDs
-#define LED_GPIO        GPIOB
-#define LED1_PIN        14
-#define LED2_PIN        15
-
 // USB
 #define USB_GPIO		GPIOA
 #define USB_DM_PIN		11
 #define USB_DP_PIN		12
 #define SNS_5V_GPIO     GPIOF
 #define SNS_5V_PIN      0
-#endif
 
 // Button
 #define BTN_GPIO        GPIOA
@@ -56,16 +50,30 @@
 #define LCD_BCKLT_GPIO  GPIOB
 #define LCD_BCKLT_PIN1  14
 #define LCD_BCKLT_PIN2  15
-#endif
+#endif // LCD
+
+#if 1 // ==== Flash W25Q64 ====
+#define MEM_GPIO        GPIOA
+#define MEM_CS          4
+#define MEM_CLK         5
+#define MEM_DI          7
+#define MEM_DO          6
+#define MEM_WP          3
+#define MEM_HOLD        2
+#define MEM_SPI_AF      AF0
+#endif // Flash
+
+#endif // GPIO
 
 #if 1 // ========================= Timer =======================================
 // LCD
 #define LCD_BCKLT_TMR   TIM15
 #define LCD_BCKLT_CHNL1 1
 #define LCD_BCKLT_CHNL2 2
-#endif
+#endif // Timer
 
 #if 1 // =========================== SPI =======================================
+#define MEM_SPI         SPI1
 #endif
 
 #if 1 // ========================== USART ======================================
@@ -106,7 +114,7 @@ const uint8_t AdcChannels[] = { SNS_CHNL0, SNS_CHNL1 };
 #define CRS_RELOAD_VAL  ((48000000 / 1000) - 1) // Ftarget / Fsync - 1
 #define CRS_ERROR_LIMIT 34
 #define HSI48_CALIBRATN 32
-#endif
+#endif // USB
 
 #if 1 // =========================== DMA =======================================
 #define STM32_DMA_REQUIRED  TRUE
@@ -130,4 +138,4 @@ const uint8_t AdcChannels[] = { SNS_CHNL0, SNS_CHNL1 };
                         STM32_DMA_CR_TCIE         /* Enable Transmission Complete IRQ */
 #endif // ADC
 
-#endif
+#endif // DMA

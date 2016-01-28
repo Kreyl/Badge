@@ -8,6 +8,7 @@
 #include "main.h"
 #include "lcd_round.h"
 //#include "SimpleSensors.h"
+#include "FlashW25Q64t.h"
 
 App_t App;
 
@@ -20,6 +21,7 @@ int main(void) {
     // Init OS
     halInit();
     chSysInit();
+    App.InitThread();
 
     // ==== Init hardware ====
     Uart.Init(115200, UART_GPIO, UART_TX_PIN);//, UART_GPIO, UART_RX_PIN);
@@ -30,11 +32,12 @@ int main(void) {
     Lcd.SetBrightness(100);
     Lcd.PutBitmap(80, 20, 100, 150, NULL);
 
+    Flash.Init();
 
 //    PinSetupOut(GPIOB, 15, omPushPull);
 //    PinClear(GPIOB, 15);
 
-//    App.InitThread();
+
 //    PinSensors.Init();
 
     // Main cycle
