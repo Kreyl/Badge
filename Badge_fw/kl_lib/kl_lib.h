@@ -14,7 +14,7 @@
 #include "clocking.h"
 
 // Lib version
-#define KL_LIB_VERSION      "20160126_1208"
+#define KL_LIB_VERSION      "20160129_1456"
 
 #if defined STM32L1XX
 #include "stm32l1xx.h"
@@ -801,6 +801,9 @@ public:
         PSpi->CR2 = 0;
 #elif defined STM32F030
         PSpi->CR2 = (uint16_t)0b1111 << 8;  // 16 bit data size only
+#elif defined STM32F072xB
+        if(BitNumber == bitn16) PSpi->CR2 = (uint16_t)0b1111 << 8;
+        else PSpi->CR2 = ((uint16_t)0b0111 << 8) | SPI_CR2_FRXTH; // 8 bit
 #endif
         PSpi->I2SCFGR &= ~((uint16_t)SPI_I2SCFGR_I2SMOD);       // Disable I2S
     }
@@ -811,9 +814,9 @@ public:
     void SetRxOnly()   { PSpi->CR1 |= SPI_CR1_RXONLY; }
     void WaitBsyHi2Lo() { while(PSpi->SR & SPI_SR_BSY); }
     uint8_t ReadWriteByte(uint8_t AByte) {
-        PSpi->DR = AByte;
+        *((volatile uint8_t*)&PSpi->DR) = AByte;
         while(!(PSpi->SR & SPI_SR_RXNE));  // Wait for SPI transmission to complete
-        return PSpi->DR;
+        return *((volatile uint8_t*)&PSpi->DR);
     }
     uint16_t ReadWriteWord(uint16_t Word) {
         PSpi->DR = Word;

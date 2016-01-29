@@ -12,6 +12,10 @@
 
 App_t App;
 
+uint8_t Buf[4096];
+
+uint8_t WBuf[16] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16};
+
 int main(void) {
     // ==== Setup clock frequency ====
 //    Clk.EnablePrefetch();
@@ -28,11 +32,39 @@ int main(void) {
     Uart.Printf("\r%S %S\r", APP_NAME, APP_VERSION);
     Clk.PrintFreqs();
 
-    Lcd.Init();
-    Lcd.SetBrightness(100);
-    Lcd.PutBitmap(80, 20, 100, 150, NULL);
+//    Lcd.Init();
+//    Lcd.SetBrightness(100);
+//    Lcd.PutBitmap(80, 20, 100, 150, NULL);
 
-    Flash.Init();
+    Mem.Init();
+//    Mem.ReadJEDEC();
+//    Mem.ReadManufDevID();
+
+    uint8_t tmp;
+
+    Mem.ReadBlock(0, Buf, 16);
+    for(uint32_t i=0; i<16; i++) {
+        Uart.Printf("%X ", Buf[i]);
+    }
+    Uart.Printf("\r");
+
+    Mem.WriteEnable();
+
+    tmp = Mem.ReadStatusReg1();
+    Uart.Printf("status1 = %X\r", tmp);
+
+    Mem.WritePage(0, WBuf, 16);
+    Mem.BusyWait();
+//    tmp = Mem.ReadStatusReg1();
+//    Uart.Printf("status1 = %X\r", tmp);
+
+//    chThdSleepMilliseconds(5);
+
+    Mem.ReadBlock(0, Buf, 16);
+    for(uint32_t i=0; i<16; i++) {
+        Uart.Printf("%X ", Buf[i]);
+    }
+    Uart.Printf("\r");
 
 //    PinSetupOut(GPIOB, 15, omPushPull);
 //    PinClear(GPIOB, 15);
