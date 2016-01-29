@@ -55,7 +55,7 @@ uint8_t FlashW25Q64_t::ReleasePWD() {
     }
 }
 
-uint8_t FlashW25Q64_t::ReadBlock(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
+uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     CsLo();
     ISpi.ReadWriteByte(0x03);   // Send cmd code
     // Send addr
@@ -71,7 +71,8 @@ uint8_t FlashW25Q64_t::ReadBlock(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     return OK;
 }
 
-void FlashW25Q64_t::WritePage(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
+uint8_t FlashW25Q64_t::WritePage(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
+    WriteEnable();
     CsLo();
     ISpi.ReadWriteByte(0x02);   // Send cmd code
     // Send addr
@@ -84,9 +85,19 @@ void FlashW25Q64_t::WritePage(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
         PBuf++;
     }
     CsHi();
-    // Wait completion
-    // TODO
-    return;
+    return BusyWait(); // Wait completion
+}
+
+uint8_t FlashW25Q64_t::EraseBlock4k(uint32_t Addr) {
+    WriteEnable();
+    CsLo();
+    ISpi.ReadWriteByte(0x20);   // Send cmd code
+    // Send addr
+    ISpi.ReadWriteByte((Addr >> 16) & 0xFF);
+    ISpi.ReadWriteByte((Addr >> 8) & 0xFF);
+    ISpi.ReadWriteByte(Addr & 0xFF);
+    CsHi();
+    return BusyWait(); // Wait completion
 }
 
 void FlashW25Q64_t::WriteEnable() {
@@ -109,7 +120,7 @@ uint8_t FlashW25Q64_t::BusyWait() {
     ISpi.ReadWriteByte(0x05);   // Read status reg
     while(t--) {
         uint8_t r = ISpi.ReadWriteByte(0);
-        Uart.Printf(">%X\r", r);
+//        Uart.Printf(">%X\r", r);
         if((r & 0x01) == 0) break;  // BUSY bit == 0
     }
     CsHi();

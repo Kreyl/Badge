@@ -14,7 +14,7 @@ App_t App;
 
 uint8_t Buf[4096];
 
-uint8_t WBuf[16] = {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16};
+uint8_t WBuf[16] = {100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115};
 
 int main(void) {
     // ==== Setup clock frequency ====
@@ -37,30 +37,18 @@ int main(void) {
 //    Lcd.PutBitmap(80, 20, 100, 150, NULL);
 
     Mem.Init();
-//    Mem.ReadJEDEC();
-//    Mem.ReadManufDevID();
 
-    uint8_t tmp;
-
-    Mem.ReadBlock(0, Buf, 16);
+    Mem.Read(0, Buf, 16);
     for(uint32_t i=0; i<16; i++) {
         Uart.Printf("%X ", Buf[i]);
     }
     Uart.Printf("\r");
 
-    Mem.WriteEnable();
-
-    tmp = Mem.ReadStatusReg1();
-    Uart.Printf("status1 = %X\r", tmp);
+    Mem.EraseBlock4k(0);
 
     Mem.WritePage(0, WBuf, 16);
-    Mem.BusyWait();
-//    tmp = Mem.ReadStatusReg1();
-//    Uart.Printf("status1 = %X\r", tmp);
 
-//    chThdSleepMilliseconds(5);
-
-    Mem.ReadBlock(0, Buf, 16);
+    Mem.Read(0, Buf, 16);
     for(uint32_t i=0; i<16; i++) {
         Uart.Printf("%X ", Buf[i]);
     }
