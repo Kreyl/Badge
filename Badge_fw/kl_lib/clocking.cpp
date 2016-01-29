@@ -12,7 +12,7 @@
 
 Clk_t Clk;
 
-#define CLK_STARTUP_TIMEOUT     2007
+#define CLK_STARTUP_TIMEOUT     20007
 
 #if defined STM32L1XX
 // ==== Inner use ====
@@ -224,6 +224,7 @@ void SetupVCore(VCore_t AVCore) {
 }
 
 #elif defined STM32F0XX
+#include "CRS_defins.h"
 // ==== Inner use ====
 uint8_t Clk_t::EnableHSE() {
     RCC->CR |= RCC_CR_HSEON;    // Enable HSE
@@ -278,26 +279,16 @@ void Clk_t::UpdateFreqValues() {
         case csHSE:   SysClkHz = CRYSTAL_FREQ_HZ; break;
         case csPLL: // PLL used as system clock source
             // Get different PLL dividers
-#if defined STM32F042x6 || defined STM32F072xB
             PreDiv = (RCC->CFGR2 & RCC_CFGR2_PREDIV) + 1;
             PllMul = ((RCC->CFGR & RCC_CFGR_PLLMUL) >> 18) + 2;
-#else
-            PreDiv = (RCC->CFGR2 & RCC_CFGR2_PREDIV1) + 1;
-            PllMul = ((RCC->CFGR & RCC_CFGR_PLLMULL) >> 18) + 2;
-#endif
             if(PllMul > 16) PllMul = 16;
             // Which src is used as pll input?
             PllSrc = RCC->CFGR & RCC_CFGR_PLLSRC;
             switch(PllSrc) {
-#if defined STM32F042x6 || defined STM32F072xB
                 case RCC_CFGR_PLLSRC_HSI_DIV2:   SysClkHz = HSI_FREQ_HZ / 2; break;
                 case RCC_CFGR_PLLSRC_HSI_PREDIV: SysClkHz = HSI_FREQ_HZ / PreDiv; break;
                 case RCC_CFGR_PLLSRC_HSE_PREDIV: SysClkHz = CRYSTAL_FREQ_HZ / PreDiv; break;
                 case RCC_CFGR_PLLSRC_HSI48_PREDIV: SysClkHz = HSI48_FREQ_HZ / PreDiv; break;
-#else
-                case RCC_CFGR_PLLSRC_HSI_Div2: SysClkHz = HSI_VALUE / 2; break;
-                case RCC_CFGR_PLLSRC_PREDIV1: SysClkHz = CRYSTAL_FREQ_HZ / PreDiv; break;
-#endif
                 default: break;
             }
             SysClkHz *= PllMul;
@@ -305,6 +296,7 @@ void Clk_t::UpdateFreqValues() {
 
         case csHSI48: SysClkHz = HSI48_FREQ_HZ; break;
     } // switch
+
     // AHB freq
     const uint8_t AHBPrescTable[16] = {0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4, 6, 7, 8, 9};
     tmp = AHBPrescTable[((RCC->CFGR & RCC_CFGR_HPRE) >> 4)];
@@ -336,40 +328,44 @@ void Clk_t::SetupBusDividers(AHBDiv_t AHBDiv, APBDiv_t APBDiv) {
     RCC->CFGR = tmp;
 }
 
+static inline uint8_t WaitSWS(uint32_t Desired) {
+    uint32_t StartUpCounter=0;
+    do {
+        if((RCC->CFGR & RCC_CFGR_SWS) == Desired) return 0; // Done
+        StartUpCounter++;
+    } while(StartUpCounter < CLK_STARTUP_TIMEOUT);
+    return 1; // Timeout
+}
+
 // Enables HSI, switches to HSI
 uint8_t Clk_t::SwitchTo(ClkSrc_t AClkSrc) {
+    uint32_t tmp = RCC->CFGR & ~RCC_CFGR_SW;
     switch(AClkSrc) {
         case csHSI:
             if(EnableHSI() != OK) return 1;
-            RCC->CFGR &= ~RCC_CFGR_SW;      // }
-            RCC->CFGR |=  RCC_CFGR_SW_HSI;  // } Select HSI as system clock src
-            while((RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_HSI); // Wait till ready
+            RCC->CFGR = tmp | RCC_CFGR_SW_HSI;  // Select HSI as system clock src
+            return WaitSWS(RCC_CFGR_SWS_HSI);
             break;
 
         case csHSE:
             if(EnableHSE() != OK) return 2;
-            RCC->CFGR &= ~RCC_CFGR_SW;      // }
-            RCC->CFGR |=  RCC_CFGR_SW_HSE;  // } Select HSE as system clock src
-            while((RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_HSE); // Wait till ready
+            RCC->CFGR = tmp | RCC_CFGR_SW_HSE;  // Select HSE as system clock src
+            return WaitSWS(RCC_CFGR_SWS_HSE);
             break;
 
         case csPLL:
             if(EnablePLL() != OK) return 3;
-            RCC->CFGR &= ~RCC_CFGR_SW;          // }
-            RCC->CFGR |=  RCC_CFGR_SW_PLL;      // } Select PLL as system clock src
-            while ((RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_PLL); // Wait until ready
+            RCC->CFGR = tmp | RCC_CFGR_SW_PLL; // Select PLL as system clock src
+            return WaitSWS(RCC_CFGR_SWS_PLL);
             break;
 
         case csHSI48:
             if(EnableHSI48() != OK) return FAILURE;
-            else {
-                RCC->CFGR &= ~RCC_CFGR_SW;
-                RCC->CFGR |=  RCC_CFGR_SW_HSI48;
-                while ((RCC->CFGR & RCC_CFGR_SWS) != RCC_CFGR_SWS_HSI48); // Wait until ready
-            }
+            RCC->CFGR = tmp | RCC_CFGR_SW_HSI48;
+            return WaitSWS(RCC_CFGR_SWS_HSI48);
             break;
     } // switch
-    return 0;
+    return FAILURE;
 }
 
 // Disable PLL first!
@@ -380,20 +376,12 @@ uint8_t Clk_t::SetupPLLDividers(uint8_t HsePreDiv, PllMul_t PllMul) {
     HsePreDiv--;
     if(HsePreDiv > 0x0F) HsePreDiv = 0x0F;
     uint32_t tmp = RCC->CFGR2;
-#if defined STM32F042x6 || defined STM32F072xB
     tmp &= ~RCC_CFGR2_PREDIV;
-#else
-    tmp &= ~RCC_CFGR2_PREDIV1;
-#endif
     tmp |= HsePreDiv;
     RCC->CFGR2 = tmp;
     // Setup PLL divider
     tmp = RCC->CFGR;
-#if defined STM32F042x6 || defined STM32F072xB
     tmp &= ~RCC_CFGR_PLLMUL;
-#else
-    tmp &= ~RCC_CFGR_PLLMULL;
-#endif
     tmp |= ((uint32_t)PllMul) << 18;
     RCC->CFGR = tmp;
     return 0;
@@ -414,6 +402,27 @@ void Clk_t::PrintFreqs() {
             Clk.AHBFreqHz/1000000, Clk.APBFreqHz/1000000);
 }
 
+void Clk_t::EnableCRS() {
+    RCC->APB1ENR |= RCC_APB1ENR_CRSEN;      // Enable CRS clocking
+    RCC->APB1RSTR |= RCC_APB1RSTR_CRSRST;   // }
+    RCC->APB1RSTR &= ~RCC_APB1RSTR_CRSRST;  // } Reset CRS
+    // Configure Synchronization input
+    // Clear SYNCDIV[2:0], SYNCSRC[1:0] & SYNCSPOL bits
+    CRS->CFGR &= ~(CRS_CFGR_SYNCDIV | CRS_CFGR_SYNCSRC | CRS_CFGR_SYNCPOL);
+    // Configure CRS prescaler, source & polarity
+    CRS->CFGR |= (CRS_PRESCALER | CRS_SOURCE | CRS_POLARITY);
+    // Configure Frequency Error Measurement
+    CRS->CFGR &= ~(CRS_CFGR_RELOAD | CRS_CFGR_FELIM);
+    CRS->CFGR |= (CRS_RELOAD_VAL | (CRS_ERROR_LIMIT << 16));
+    // Adjust HSI48 oscillator smooth trimming
+    CRS->CR &= ~CRS_CR_TRIM;
+    CRS->CR |= (HSI48_CALIBRATN << 8);
+    // Enable auto trimming
+    CRS->CR |= CRS_CR_AUTOTRIMEN;
+    // Enable Frequency error counter
+    CRS->CR |= CRS_CR_CEN;
+}
+
 /*
  * Early initialization code.
  * This initialization must be performed just after stack setup and before
@@ -423,7 +432,6 @@ void __early_init(void) {
     // Enable HSI. It is enabled by default, but who knows.
     RCC->CR |= RCC_CR_HSION;
     while(!(RCC->CR & RCC_CR_HSIRDY));
-
     // SYSCFG clock enabled here because it is a multi-functional unit
     // shared among multiple drivers using external IRQs
     rccEnableAPB2(RCC_APB2ENR_SYSCFGEN, 1);

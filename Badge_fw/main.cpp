@@ -7,14 +7,13 @@
 
 #include "main.h"
 #include "lcd_round.h"
-//#include "SimpleSensors.h"
+#include "SimpleSensors.h"
 #include "FlashW25Q64t.h"
+#include "usb_mst.h"
+
+#include "descriptors_mst.h"
 
 App_t App;
-
-uint8_t Buf[4096];
-
-uint8_t WBuf[16] = {100,101,102,103,104,105,106,107,108,109,110,111,112,113,114,115};
 
 int main(void) {
     // ==== Setup clock frequency ====
@@ -37,28 +36,8 @@ int main(void) {
 //    Lcd.PutBitmap(80, 20, 100, 150, NULL);
 
     Mem.Init();
-
-    Mem.Read(0, Buf, 16);
-    for(uint32_t i=0; i<16; i++) {
-        Uart.Printf("%X ", Buf[i]);
-    }
-    Uart.Printf("\r");
-
-    Mem.EraseBlock4k(0);
-
-    Mem.WritePage(0, WBuf, 16);
-
-    Mem.Read(0, Buf, 16);
-    for(uint32_t i=0; i<16; i++) {
-        Uart.Printf("%X ", Buf[i]);
-    }
-    Uart.Printf("\r");
-
-//    PinSetupOut(GPIOB, 15, omPushPull);
-//    PinClear(GPIOB, 15);
-
-
-//    PinSensors.Init();
+    PinSensors.Init();
+    UsbMst.Init();
 
     // Main cycle
     App.ITask();
@@ -73,6 +52,24 @@ void App_t::ITask() {
             Uart.SignalCmdProcessed();
         }
 #if 1 // ==== USB ====
+        if(EvtMsk & EVTMSK_USB_CONNECTED) {
+            Uart.Printf("5v is here\r");
+            chThdSleepMilliseconds(270);
+            // Enable HSI48
+            chSysLock();
+            uint8_t r = Clk.SwitchTo(csHSI48);
+            Clk.UpdateFreqValues();
+            Uart.OnAHBFreqChange();
+            chSysUnlock();
+            Clk.PrintFreqs();
+            if(r == OK) {
+                Clk.SelectUSBClock_HSI48();
+                Clk.EnableCRS();
+                UsbMst.Connect();
+            }
+            else Uart.Printf("Hsi Fail\r");
+        }
+
         if(EvtMsk & EVTMSK_USB_READY) {
             Uart.Printf("UsbReady\r");
         }
@@ -93,3 +90,14 @@ void App_t::OnCmd(Shell_t *PShell) {
     else PShell->Ack(CMD_UNKNOWN);
 }
 #endif
+
+// 5v Sns
+void Process5VSns(PinSnsState_t *PState, uint32_t Len) {
+    if(PState[0] == pssRising) App.SignalEvt(EVTMSK_USB_CONNECTED);
+    else if(PState[0] == pssFalling) App.SignalEvt(EVTMSK_USB_DISCONNECTED);
+}
+// Button
+void ProcessBtnPress(PinSnsState_t *PState, uint32_t Len) {
+    if(PState[0] == pssRising) App.SignalEvt(EVTMSK_BTN_PRESS);
+//    else if(PState[0] == pssFalling) App.SignalEvt(EVTMSK_USB_DISCONNECTED);
+}

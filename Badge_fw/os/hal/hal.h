@@ -22,8 +22,7 @@
  * @{
  */
 
-#ifndef _HAL_H_
-#define _HAL_H_
+#pragma once
 
 #include "osal.h"
 #include "board.h"
@@ -60,7 +59,7 @@
 //#include "sdc.h"
 //#include "spi.h"
 //#include "uart.h"
-//#include "usb.h"
+#include "usb.h"
 //#include "wdg.h"
 
 /*
@@ -156,7 +155,5 @@ extern "C" {
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* _HAL_H_ */
 
 /** @} */

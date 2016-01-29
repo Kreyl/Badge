@@ -156,10 +156,8 @@ enum PllMul_t {
     pllMul16=14
 };
 
-#ifdef STM32F072xB
 enum PllSrc_t {plsHSIdiv2=0b00, plsHSIdivPREDIV=0b01, plsHSEdivPREDIV=0b10, plsHSI48divPREDIV=0b11};
 enum ClkSrc_t {csHSI=0b00, csHSE=0b01, csPLL=0b10, csHSI48=0b11};
-#endif
 
 enum AHBDiv_t {
     ahbDiv1=0b0000,
