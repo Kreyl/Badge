@@ -48,7 +48,7 @@ struct MS_CommandStatusWrapper_t {
 #endif
 
 #define MSD_TIMEOUT_MS   2700
-#define MSD_DATABUF_SZ   512
+#define MSD_DATABUF_SZ   4096
 
 class UsbMsd_t {
 private:
