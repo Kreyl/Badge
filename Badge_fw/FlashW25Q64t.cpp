@@ -34,6 +34,7 @@ uint8_t FlashW25Q64_t::Init() {
     // ==== SPI ====    MSB first, master, ClkLowIdle, FirstEdge, Baudrate=f/2
     ISpi.Setup(MEM_SPI, boMSB, cpolIdleLow, cphaFirstEdge, sbFdiv2);
     ISpi.Enable();
+    chBSemObjectInit(&ISemaphore, NOT_TAKEN);
     // Initialization cmds
     if(ReleasePWD() != OK) return FAILURE;
     IsReady = true;
@@ -56,7 +57,12 @@ uint8_t FlashW25Q64_t::ReleasePWD() {
     }
 }
 
+
+#if 1 // ========================= Exported methods ============================
 uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
+    // Take semaphore
+    if(chBSemWait(&ISemaphore) != MSG_OK) return FAILURE;
+    // Proceed with reading
     CsLo();
     ISpi.ReadWriteByte(0x03);   // Send cmd code
     // Send addr
@@ -69,9 +75,44 @@ uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
         PBuf++;
     }
     CsHi();
+    chBSemSignal(&ISemaphore);  // Release semaphore
     return OK;
 }
 
+// Len = MEM_SECTOR_SZ = 4096
+uint8_t FlashW25Q64_t::EraseAndWriteSector4k(uint32_t Addr, uint8_t *PBuf) {
+    // Take semaphore
+    if(chBSemWait(&ISemaphore) != MSG_OK) return FAILURE;
+    // First, erase sector
+    uint8_t rslt = EraseSector4k(Addr);
+    if(rslt != OK) goto end;
+    // Write 4k page by page
+    for(uint32_t i=0; i < MEM_PAGES_IN_SECTOR_CNT; i++) {
+        WriteEnable();
+        CsLo();
+        ISpi.ReadWriteByte(0x02);   // Send cmd code
+        // Send addr
+        ISpi.ReadWriteByte((Addr >> 16) & 0xFF);
+        ISpi.ReadWriteByte((Addr >> 8) & 0xFF);
+        ISpi.ReadWriteByte(Addr & 0xFF);
+        // Write data
+        for(uint32_t j=0; j < MEM_PAGE_SZ; j++) {
+            ISpi.ReadWriteByte(*PBuf);
+            PBuf++;
+        }
+        CsHi();
+        // Wait completion
+        rslt = BusyWait();
+        if(rslt != OK) goto end;
+        Addr += MEM_PAGE_SZ;
+    } // for
+    end:
+    chBSemSignal(&ISemaphore);  // Release semaphore
+    return rslt;
+}
+#endif // Exported
+
+#if 1 // =========================== Inner methods =============================
 uint8_t FlashW25Q64_t::WritePage(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     WriteEnable();
     CsLo();
@@ -99,32 +140,6 @@ uint8_t FlashW25Q64_t::EraseSector4k(uint32_t Addr) {
     ISpi.ReadWriteByte(Addr & 0xFF);
     CsHi();
     return BusyWait(); // Wait completion
-}
-
-// Len = MEM_SECTOR_SZ = 4096
-uint8_t FlashW25Q64_t::EraseWriteSector4k(uint32_t Addr, uint8_t *PBuf) {
-    uint8_t r = EraseSector4k(Addr);
-    if(r != OK) return r;
-    // Write 4k page by page
-    for(uint32_t i=0; i < MEM_PAGES_IN_SECTOR_CNT; i++) {
-        WriteEnable();
-        CsLo();
-        ISpi.ReadWriteByte(0x02);   // Send cmd code
-        // Send addr
-        ISpi.ReadWriteByte((Addr >> 16) & 0xFF);
-        ISpi.ReadWriteByte((Addr >> 8) & 0xFF);
-        ISpi.ReadWriteByte(Addr & 0xFF);
-        // Write data
-        for(uint32_t j=0; j < MEM_PAGE_SZ; j++) {
-            ISpi.ReadWriteByte(*PBuf);
-            PBuf++;
-        }
-        CsHi();
-        // Wait completion
-        if(BusyWait() != OK) return FAILURE;
-        Addr += MEM_PAGE_SZ;
-    }
-    return OK;
 }
 
 void FlashW25Q64_t::WriteEnable() {
@@ -182,3 +197,4 @@ void FlashW25Q64_t::ReadManufDevID() {
     Uart.Printf("MemType: 0x%X\r", r);
     CsHi();
 }
+#endif // Inner

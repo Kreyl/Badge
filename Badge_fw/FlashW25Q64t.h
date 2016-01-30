@@ -23,20 +23,20 @@
 class FlashW25Q64_t {
 private:
     Spi_t ISpi;
+    binary_semaphore_t ISemaphore;
     uint8_t ReleasePWD();
     void WriteEnable();
     uint8_t BusyWait();
+    uint8_t WritePage(uint32_t Addr, uint8_t *PBuf, uint32_t ALen);
+    uint8_t EraseSector4k(uint32_t Addr);
+    uint8_t ReadStatusReg1();
+    void ReadJEDEC();
+    void ReadManufDevID();
 public:
     bool IsReady = false;
     uint8_t Init();
     uint8_t Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen);
-    uint8_t WritePage(uint32_t Addr, uint8_t *PBuf, uint32_t ALen);
-    uint8_t EraseSector4k(uint32_t Addr);
-    uint8_t EraseWriteSector4k(uint32_t Addr, uint8_t *PBuf);
-
-    uint8_t ReadStatusReg1();
-    void ReadJEDEC();
-    void ReadManufDevID();
+    uint8_t EraseAndWriteSector4k(uint32_t Addr, uint8_t *PBuf);
 };
 
 extern FlashW25Q64_t Mem;
