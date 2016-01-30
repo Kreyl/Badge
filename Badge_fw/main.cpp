@@ -11,14 +11,9 @@
 #include "lcd_round.h"
 #include "SimpleSensors.h"
 #include "FlashW25Q64t.h"
-#include "ff.h"
+#include "kl_fs_common.h"
 
 App_t App;
-
-FATFS FatFS;
-FIL File;
-
-#define FATFS_IS_OK()   (FatFS.fs_type != 0)
 
 uint8_t Buf[256];
 
@@ -38,9 +33,9 @@ int main(void) {
     Uart.Printf("\r%S %S\r", APP_NAME, APP_VERSION);
     Clk.PrintFreqs();
 
-//    Lcd.Init();
-//    Lcd.SetBrightness(100);
-//    Lcd.PutBitmap(80, 20, 100, 150, NULL);
+    Lcd.Init();
+    Lcd.SetBrightness(100);
+    Lcd.PutBitmap(80, 20, 100, 150, NULL);
 
     Mem.Init();
     PinSensors.Init();
@@ -49,6 +44,7 @@ int main(void) {
     // FAT init
     FRESULT r = f_mount(&FatFS, "", 1); // Mount it now
     if(r != FR_OK) Uart.Printf("FS mount error: %u\r", r);
+    else Lcd.DrawBmpFile(0,0, "badge2016.bmp", &File);
 
     // Main cycle
     App.ITask();

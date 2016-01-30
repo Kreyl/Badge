@@ -14,18 +14,19 @@
 #include <string.h>
 #include "board.h"
 #include "color.h"
+#include "ff.h"
 
 #define LCD_X_0             10  // Zero pixels are shifted
 #define LCD_W               220 // }
 #define LCD_H               220 // } Pixels count
 #define LCD_TOP_BRIGHTNESS  100 // i.e. 100%
 
-#define BUF_SZ  72
+#define BUF_SZ              128
+
 class Lcd_t {
 private:
     PinOutputPWM_t<100, invInverted, omPushPull> Led1 {GPIOB, 14, TIM15, 1};
     PinOutputPWM_t<LCD_TOP_BRIGHTNESS, invInverted, omPushPull> Led2 {LCD_BCKLT_GPIO, LCD_BCKLT_PIN2, LCD_BCKLT_TMR, LCD_BCKLT_CHNL2};
-
 //    uint16_t IX, IY;
 //    Color_t IForeClr, IBckClr;
     void WriteReg(uint8_t AReg, uint16_t AData);
@@ -33,8 +34,7 @@ private:
     void GoTo(uint16_t x, uint16_t y);
     void PrepareToWriteGRAM();
     void SetBounds(uint16_t Left, uint16_t Width, uint16_t Top, uint16_t Height);
-//    FIL IFile;
-//    char IBuf[BUF_SZ];
+    uint8_t IBuf[BUF_SZ];
     uint16_t IBrightness;
 public:
     // General use
@@ -51,7 +51,7 @@ public:
     void PutBitmap(uint16_t x0, uint16_t y0, uint16_t Width, uint16_t Height, uint16_t *PBuf);
 //    void DrawImage(const uint8_t x, const uint8_t y, const uint8_t *Img);
 //    void DrawSymbol(const uint8_t x, const uint8_t y, const uint8_t ACode);
-//    void DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename);
+    void DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile);
 };
 
 extern Lcd_t Lcd;

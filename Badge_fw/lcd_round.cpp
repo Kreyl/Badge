@@ -256,7 +256,7 @@ void Lcd_t::PutBitmap(uint16_t x0, uint16_t y0, uint16_t Width, uint16_t Height,
     }
 }
 #endif
-/*
+
 #if 1 // ============================= BMP =====================================
 struct BmpHeader_t {
     uint16_t bfType;
@@ -279,82 +279,65 @@ struct BmpInfo_t {  // Length is absent as read first
 } __packed;
 
 
-void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename) {
+void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile) {
     Uart.Printf("Draw %S\r", Filename);
+    uint32_t RCnt=0, Sz=0, FOffset;
+    BmpHeader_t *PHdr;
     // Open file
-    FRESULT rslt = f_open(&IFile, Filename, FA_READ+FA_OPEN_EXISTING);
+    FRESULT rslt = f_open(PFile, Filename, FA_READ);
     if(rslt != FR_OK) {
         if (rslt == FR_NO_FILE) Uart.Printf("%S: not found\r", Filename);
         else Uart.Printf("OpenFile error: %u", rslt);
         return;
     }
     // Check if zero file
-    if(IFile.fsize == 0) {
+    if(PFile->fsize == 0) {
         Uart.Printf("Empty file\r");
-        f_close(&IFile); return;
+        goto end;
     }
 
-    unsigned int RCnt=0;
-    // Read BITMAPFILEHEADER
-    if((rslt = f_read(&IFile, IBuf, sizeof(BmpHeader_t), &RCnt)) != 0) {
-        f_close(&IFile); return;
-    }
-    BmpHeader_t *PHdr = (BmpHeader_t*)IBuf;
+    // ==== Read BITMAPFILEHEADER ====
+    rslt = f_read(PFile, IBuf, sizeof(BmpHeader_t), &RCnt);
+    if(rslt != FR_OK) goto end;
+    PHdr = (BmpHeader_t*)IBuf;
     Uart.Printf("T=%X; Sz=%u; Off=%u\r", PHdr->bfType, PHdr->bfSize, PHdr->bfOffBits);
-    uint32_t FOff = PHdr->bfOffBits;
+    FOffset = PHdr->bfOffBits;
 
     // ==== Read BITMAPINFO ====
     // Get struct size => version
-    uint32_t Sz=0;
-    if((rslt = f_read(&IFile, (uint8_t*)&Sz, 4, &RCnt)) != 0) {
-        f_close(&IFile); return;
-    }
+    rslt = f_read(PFile, (uint8_t*)&Sz, 4, &RCnt);
+    if(rslt != FR_OK) goto end;
     if((Sz == 40) or (Sz == 52) or (Sz == 56)) {  // V3 or V4 adobe
-        BmpInfo_t Info;
-        if((rslt = f_read(&IFile, (uint8_t*)&Info, Sz-4, &RCnt)) != 0) {
-            f_close(&IFile); return;
-        }
+        // Read Info
+        rslt = f_read(PFile, IBuf, Sz-4, &RCnt);
+        if(rslt != FR_OK) goto end;
+        BmpInfo_t *PInfo = (BmpInfo_t*)IBuf;
         Uart.Printf("W=%u; H=%u; BitCnt=%u; Cmp=%u; Sz=%u;  MskR=%X; MskG=%X; MskB=%X; MskA=%X\r",
-                Info.Width, Info.Height, Info.BitCnt, Info.Compression,
-                Info.SzImage, Info.RedMsk, Info.GreenMsk, Info.BlueMsk, Info.AlphaMsk);
+                PInfo->Width, PInfo->Height, PInfo->BitCnt, PInfo->Compression,
+                PInfo->SzImage, PInfo->RedMsk, PInfo->GreenMsk, PInfo->BlueMsk, PInfo->AlphaMsk);
+        Sz = PInfo->SzImage;
 
         // Move to pixel data
-        if((rslt = f_lseek(&IFile, FOff)) != 0) {
-            f_close(&IFile); return;
-        }
+        rslt = f_lseek(PFile, FOffset);
+        if(rslt != FR_OK) goto end;
 
-        SetBounds(x0, x0+Info.Width, y0, y0+Info.Height);
+        // Setup window
+        SetBounds(x0, PInfo->Width, y0, PInfo->Height);
+        WriteReg(0x21, y0); // Goto y0
         // Write RAM
-        WriteByte(0x2C);    // Memory write
-        DC_Hi();
-        while(Info.SzImage) {
-            if((rslt = f_read(&IFile, IBuf, BUF_SZ, &RCnt)) != 0) break;
+        PrepareToWriteGRAM();
+        while(Sz) {
+            rslt = f_read(PFile, IBuf, BUF_SZ, &RCnt);
+            if(rslt != FR_OK) goto end;
             for(uint32_t i=0; i<RCnt; i+=2) {
                 WriteByte(IBuf[i+1]);
                 WriteByte(IBuf[i]);
             }
-            Info.SzImage -= RCnt;
-        }
-        DC_Lo();
-    }
-
-    else {
-        Uart.Printf("Core, V4 or V5");
-    }
-
-
-//    if(strncmp(IBuf, PngSignature, 8) != 0) {
-//        Uart.Printf("SigErr\r");
-//        f_close(&IFile); return;
-//    }
-
-
-
-    f_close(&IFile);
-    Uart.Printf("Done\r");
+            Sz -= RCnt;
+        } // while Sz
+    } // if Sz
+    else Uart.Printf("Core, V4 or V5");
+    end:
+    f_close(PFile);
 }
-
-
 #endif
-
-*/
