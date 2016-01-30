@@ -16,9 +16,9 @@
 
 #define MEM_PAGE_SZ     256  // Defined in datasheet
 #define MEM_PAGE_CNT    32768
-#define MEM_PAGES_IN_BLOCK_CNT  16
-#define MEM_BLOCK_SZ    4096 // 16 pages
-#define MEM_BLOCK_CNT   2048 // 2048 blocks of 16 pages each
+#define MEM_PAGES_IN_SECTOR_CNT  16
+#define MEM_SECTOR_SZ   4096 // 16 pages
+#define MEM_SECTOR_CNT  2048 // 2048 blocks of 16 pages each
 
 class FlashW25Q64_t {
 private:
@@ -31,7 +31,8 @@ public:
     uint8_t Init();
     uint8_t Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen);
     uint8_t WritePage(uint32_t Addr, uint8_t *PBuf, uint32_t ALen);
-    uint8_t EraseBlock4k(uint32_t Addr);
+    uint8_t EraseSector4k(uint32_t Addr);
+    uint8_t EraseWriteSector4k(uint32_t Addr, uint8_t *PBuf);
 
     uint8_t ReadStatusReg1();
     void ReadJEDEC();

@@ -95,7 +95,7 @@ bool OnSetupPkt(USBDriver *usbp) {
        Setup->bRequest == MS_REQ_GetMaxLUN and
        Setup->wLength == 1)
     {
-        Uart.PrintfI("MS_REQ_GetMaxLUN\r");
+//        Uart.PrintfI("MS_REQ_GetMaxLUN\r");
         SByte = 0;  // Maximum LUN ID
         usbSetupTransfer(usbp, &SByte, 1, NULL);
         return true;
@@ -107,7 +107,7 @@ bool OnSetupPkt(USBDriver *usbp) {
        Setup->bRequest == MS_REQ_MassStorageReset and
        Setup->wLength == 0)
     {
-        Uart.PrintfI("MS_REQ_MassStorageReset\r");
+//        Uart.PrintfI("MS_REQ_MassStorageReset\r");
         // TODO: remove Stall condition
         return true; // Acknowledge reception
     }
@@ -359,9 +359,7 @@ uint8_t UsbMsd_t::CmdRead10() {
     while(TotalBlocks != 0) {
         BlocksToRead = MIN(MSD_DATABUF_SZ / MSD_BLOCK_SZ, TotalBlocks);
         BytesToSend = BlocksToRead * MSD_BLOCK_SZ;
-//        Uart.Printf("\rR1");
         Rslt = MSDRead(BlockAddress, Buf, BlocksToRead);
-//        Uart.Printf("R2");
 //        Uart.Printf("%A\r", Buf, 50, ' ');
         if(Rslt == OK) {
             TransmitBuf(Buf, BytesToSend);

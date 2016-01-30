@@ -8,28 +8,33 @@
 #include "mem_msd_glue.h"
 #include "uart.h"
 
+static uint8_t BufSector[MEM_SECTOR_SZ];
+#define BLOCK_SZ_32     (512/4)
+
 uint8_t MSDRead(uint32_t BlockAddress, uint8_t *Ptr, uint32_t BlocksCnt) {
-//    Uart.Printf("R Addr: %u; Cnt: %u\r", BlockAddress, BlocksCnt);
-    Mem.Read(BlockAddress * MEM_BLOCK_SZ, Ptr, BlocksCnt * MEM_BLOCK_SZ);
+    //Uart.Printf("R Addr: %u; Cnt: %u\r", BlockAddress, BlocksCnt);
+    Mem.Read(BlockAddress * MSD_BLOCK_SZ, Ptr, BlocksCnt * MSD_BLOCK_SZ);
     return OK;
 }
 
 uint8_t MSDWrite(uint32_t BlockAddress, uint8_t *Ptr, uint32_t BlocksCnt) {
     Uart.Printf("WRT Addr: %u; Cnt: %u\r", BlockAddress, BlocksCnt);
-//    for(uint32_t i = 0; i < (BlocksCnt*4096/128); i++) {
-//        Uart.Printf("WR: %A\r", Ptr, 128, ' ');
-//        Ptr += 128;
-//    }
-    for(uint32_t i=0; i<BlocksCnt; i++) {   // One block at a time
-        uint32_t ByteAddr = (BlockAddress + i) * MEM_BLOCK_SZ;
-        // Erase block
-        if(Mem.EraseBlock4k(ByteAddr) != OK) return FAILURE;
-        // Write pages of the block
-        for(uint32_t j=0; j<MEM_PAGES_IN_BLOCK_CNT; j++) {
-            if(Mem.WritePage(ByteAddr, Ptr, MEM_PAGE_SZ) != OK) return FAILURE;
-            ByteAddr += MEM_PAGE_SZ;
-            Ptr += MEM_PAGE_SZ;
-        } // j
-    } // i
+    while(BlocksCnt != 0) {
+        // Determine Mem Sector addr
+        uint32_t SectorStartAddr = (BlockAddress / 8) * MEM_SECTOR_SZ;
+        uint32_t ByteIndx = (BlockAddress * MSD_BLOCK_SZ) - SectorStartAddr; // Byte indx in buffer
+        Uart.Printf("SSA=%u; BI=%u\r", SectorStartAddr, ByteIndx);
+        // Read Mem Sector
+        Mem.Read(SectorStartAddr, BufSector, MEM_SECTOR_SZ);
+        // Modify buffer
+        for(uint32_t i=0; i < MSD_BLOCK_SZ; i++) {
+            BufSector[ByteIndx + i] = *Ptr++;
+        }
+        // Write renewed sector
+        if(Mem.EraseWriteSector4k(SectorStartAddr, BufSector) != OK) return FAILURE;
+        // Process variables
+        BlockAddress += MSD_BLOCK_SZ;
+        BlocksCnt--;
+    }
     return OK;
 }

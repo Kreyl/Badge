@@ -15,6 +15,11 @@
 
 App_t App;
 
+FATFS FatFS;
+FIL File;
+
+uint8_t Buf[256];
+
 int main(void) {
     // ==== Setup clock frequency ====
 //    Clk.EnablePrefetch();
@@ -39,6 +44,23 @@ int main(void) {
     PinSensors.Init();
     UsbMsd.Init();
 
+    // FAT init
+    FRESULT r = f_mount(&FatFS, "", 1); // Mount it now
+    if(r != FR_OK) Uart.Printf("FS mount error: %u\r", r);
+    else {
+        r = f_open(&File, "readme.txt", FA_READ);
+        if(r != FR_OK) Uart.Printf("Open error: %u\r", r);
+        else {
+            uint32_t BytesRead=0;
+            r = f_read(&File, Buf, 255, &BytesRead);
+            if(r != FR_OK) Uart.Printf("Read error: %u\r", r);
+            else {
+                Buf[BytesRead] = 0;
+                Uart.Printf("> %S\r", Buf);
+            }
+        }
+    }
+
     // Main cycle
     App.ITask();
 }
@@ -51,7 +73,7 @@ void App_t::ITask() {
             OnCmd((Shell_t*)&Uart);
             Uart.SignalCmdProcessed();
         }
-#if 1 // ==== USB ====
+#if 0 // ==== USB ====
         if(EvtMsk & EVTMSK_USB_CONNECTED) {
             Uart.Printf("5v is here\r");
             chThdSleepMilliseconds(270);

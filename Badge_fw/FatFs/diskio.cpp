@@ -84,13 +84,13 @@ DRESULT disk_ioctl (
         case CTRL_SYNC:
             return RES_OK;
         case GET_SECTOR_COUNT:
-            *((DWORD *)buff) = (uint32_t)MEM_BLOCK_CNT;
+            *((DWORD *)buff) = (uint32_t)MEM_SECTOR_CNT;
             return RES_OK;
         case GET_SECTOR_SIZE:
-            *((WORD *)buff) = _MAX_SS; // XXX
+            *((WORD *)buff) = _MAX_SS;
             return RES_OK;
         case GET_BLOCK_SIZE:
-            *((DWORD *)buff) = _MAX_SS; // XXX
+            *((DWORD *)buff) = _MAX_SS;
             return RES_OK;
     } // Switch
 

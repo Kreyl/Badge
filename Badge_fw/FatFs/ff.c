@@ -19,6 +19,8 @@
 #include "ff.h"			/* Declarations of FatFs API */
 #include "diskio.h"		/* Declarations of disk I/O functions */
 
+// @KL
+extern void PrintfC(const char *format, ...);
 
 /*--------------------------------------------------------------------------
 
@@ -742,6 +744,8 @@ FRESULT move_window (	/* FR_OK(0):succeeded, !=0:error */
 			if (disk_read(fs->drv, fs->win, sector, 1) != RES_OK) {
 				sector = 0xFFFFFFFF;	/* Invalidate window if data is not reliable */
 				res = FR_DISK_ERR;
+
+
 			}
 			fs->winsect = sector;
 		}
@@ -964,7 +968,7 @@ FRESULT remove_chain (	/* FR_OK(0):succeeded, !=0:error */
 #if _USE_TRIM
 			if (ecl + 1 == nxt) {	/* Is next cluster contiguous? */
 				ecl = nxt;
-			} else {				/* End of contiguous clusters */ 
+			} else {				/* End of contiguous clusters */
 				rt[0] = clust2sect(fs, scl);					/* Start sector */
 				rt[1] = clust2sect(fs, ecl) + fs->csize - 1;	/* End sector */
 				disk_ioctl(fs->drv, CTRL_TRIM, rt);				/* Erase the block */
@@ -1375,7 +1379,7 @@ void fit_lfn (
 /* Create numbered name                                                  */
 /*-----------------------------------------------------------------------*/
 #if _USE_LFN
-static
+__attribute__((unused)) static
 void gen_numname (
 	BYTE* dst,			/* Pointer to the buffer to store numbered SFN */
 	const BYTE* src,	/* Pointer to SFN */
@@ -2130,7 +2134,7 @@ int get_ldnumber (		/* Returns logical drive number (-1:invalid drive) */
 		for (tt = *path; (UINT)*tt >= (_USE_LFN ? ' ' : '!') && *tt != ':'; tt++) ;	/* Find ':' in the path */
 		if (*tt == ':') {	/* If a ':' is exist in the path name */
 			tp = *path;
-			i = *tp++ - '0'; 
+			i = *tp++ - '0';
 			if (i < 10 && tp == tt) {	/* Is there a numeric drive id? */
 				if (i < _VOLUMES) {	/* If a drive id is found, get the value and strip it */
 					vol = (int)i;
@@ -2180,6 +2184,8 @@ BYTE check_fs (	/* 0:Valid FAT-BS, 1:Valid BS but not FAT, 2:Not a BS, 3:Disk er
 	fs->wflag = 0; fs->winsect = 0xFFFFFFFF;	/* Invaidate window */
 	if (move_window(fs, sect) != FR_OK)			/* Load boot record */
 		return 3;
+
+//	PrintfC("MW\r%A\r", fs->win, 512, ' ');
 
 	if (LD_WORD(&fs->win[BS_55AA]) != 0xAA55)	/* Check boot record signature (always placed at offset 510 even if the sector size is >512) */
 		return 2;
@@ -2269,7 +2275,6 @@ FRESULT find_volume (	/* FR_OK(0): successful, !=0: any error occurred */
 	if (fmt) return FR_NO_FILESYSTEM;		/* No FAT volume is found */
 
 	/* An FAT volume is found. Following code initializes the file system object */
-
 	if (LD_WORD(fs->win + BPB_BytsPerSec) != SS(fs))	/* (BPB_BytsPerSec must be equal to the physical sector size) */
 		return FR_NO_FILESYSTEM;
 
@@ -2976,7 +2981,7 @@ FRESULT f_getcwd (
 				res = dir_read(&dj, 0);
 				if (res != FR_OK) break;
 				if (ccl == ld_clust(dj.fs, dj.dir)) break;	/* Found the entry */
-				res = dir_next(&dj, 0);	
+				res = dir_next(&dj, 0);
 			} while (res == FR_OK);
 			if (res == FR_NO_FILE) res = FR_INT_ERR;/* It cannot be 'not found'. */
 			if (res != FR_OK) break;

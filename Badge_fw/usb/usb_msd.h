@@ -48,7 +48,7 @@ struct MS_CommandStatusWrapper_t {
 #endif
 
 #define MSD_TIMEOUT_MS   2700
-#define MSD_DATABUF_SZ   4096
+#define MSD_DATABUF_SZ   512
 
 class UsbMsd_t {
 private:
@@ -68,13 +68,7 @@ private:
     uint8_t CmdWrite10();
     uint8_t CmdModeSense6();
     uint8_t ReadWriteCommon(uint32_t *PAddr, uint16_t *PLen);
-    // Buffers need to be aligned to 4-byte boundaries to allow advanced DMA to use aligned access.
-    struct {
-        union {
-            uint32_t DummyBuf[(MSD_DATABUF_SZ/4)];
-            uint8_t Buf[MSD_DATABUF_SZ];
-        };
-    };
+    uint8_t Buf[MSD_DATABUF_SZ];
     void BusyWaitIN();
     uint8_t BusyWaitOUT();
     void TransmitBuf(uint8_t *Ptr, uint32_t Len);

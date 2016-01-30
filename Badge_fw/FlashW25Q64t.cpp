@@ -89,7 +89,7 @@ uint8_t FlashW25Q64_t::WritePage(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     return BusyWait(); // Wait completion
 }
 
-uint8_t FlashW25Q64_t::EraseBlock4k(uint32_t Addr) {
+uint8_t FlashW25Q64_t::EraseSector4k(uint32_t Addr) {
     WriteEnable();
     CsLo();
     ISpi.ReadWriteByte(0x20);   // Send cmd code
@@ -99,6 +99,32 @@ uint8_t FlashW25Q64_t::EraseBlock4k(uint32_t Addr) {
     ISpi.ReadWriteByte(Addr & 0xFF);
     CsHi();
     return BusyWait(); // Wait completion
+}
+
+// Len = MEM_SECTOR_SZ = 4096
+uint8_t FlashW25Q64_t::EraseWriteSector4k(uint32_t Addr, uint8_t *PBuf) {
+    uint8_t r = EraseSector4k(Addr);
+    if(r != OK) return r;
+    // Write 4k page by page
+    for(uint32_t i=0; i < MEM_PAGES_IN_SECTOR_CNT; i++) {
+        WriteEnable();
+        CsLo();
+        ISpi.ReadWriteByte(0x02);   // Send cmd code
+        // Send addr
+        ISpi.ReadWriteByte((Addr >> 16) & 0xFF);
+        ISpi.ReadWriteByte((Addr >> 8) & 0xFF);
+        ISpi.ReadWriteByte(Addr & 0xFF);
+        // Write data
+        for(uint32_t j=0; j < MEM_PAGE_SZ; j++) {
+            ISpi.ReadWriteByte(*PBuf);
+            PBuf++;
+        }
+        CsHi();
+        // Wait completion
+        if(BusyWait() != OK) return FAILURE;
+        Addr += MEM_PAGE_SZ;
+    }
+    return OK;
 }
 
 void FlashW25Q64_t::WriteEnable() {
