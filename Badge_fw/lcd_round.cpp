@@ -44,7 +44,8 @@ const RegData_t InitData[] = {
         {0x12, 0x01B9, 0},
         {0x01, 0x0100, 0},
         {0x02, 0x0200, 0},
-        {0x03, 0x1030, 0},
+//        {0x03, 0x1230, 0},  // HWM=1, ORG=0
+        {0x03, 0x12B0, 0},  // HWM=1, ORG=1, ID=11=>origin top left
         {0x09, 0x0001, 0},
         {0x0A, 0x0000, 0},
         {0x0D, 0x0000, 0},
@@ -202,11 +203,13 @@ void Lcd_t::SetBounds(uint16_t Left, uint16_t Width, uint16_t Top, uint16_t Heig
     WriteReg(0x51, XEndAddr);
     WriteReg(0x52, Top);
     WriteReg(0x53, YEndAddr);
+    // Move origin to zero: required if ORG==1
+    WriteReg(0x20, 0);
+    WriteReg(0x21, 0);
 }
 
 void Lcd_t::Cls(Color_t Color) {
     SetBounds(0, LCD_W, 0, LCD_H);
-    WriteReg(0x21, 0); // Goto y0
     // Prepare variables
     uint8_t ClrUpper = Color.RGBTo565_HiByte();
     uint8_t ClrLower = Color.RGBTo565_LoByte();
@@ -217,33 +220,10 @@ void Lcd_t::Cls(Color_t Color) {
         WriteByte(ClrLower);
     }
 }
-/*
-void Lcd_t::GetBitmap(uint8_t x0, uint8_t y0, uint8_t Width, uint8_t Height, uint16_t *PBuf) {
-    SetBounds(x0, x0+Width, y0, y0+Height);
-    // Prepare variables
-    uint32_t Cnt = Width * Height;
-    uint16_t R, G, B;
-    // Read RAM
-    WriteByte(0x2E);    // RAMRD
-    DC_Hi();
-    ModeRead();
-    ReadByte();         // Dummy read
-    for(uint32_t i=0; i<Cnt; i++) {
-        R = ReadByte(); // }
-        G = ReadByte(); // }
-        B = ReadByte(); // } Inside LCD, data is always in 18bit format.
-        // Produce 4R-4G-4B from 6R-6G-6B
-        *PBuf++ = ((R & 0xF0) << 4) | (G & 0xF0) | ((B & 0xF0) >> 4);
-    }
-    ModeWrite();
-    DC_Lo();
-}
-*/
 
 void Lcd_t::PutBitmap(uint16_t x0, uint16_t y0, uint16_t Width, uint16_t Height, uint16_t *PBuf) {
     //Uart.Printf("%u %u %u %u %u\r", x0, y0, Width, Height, *PBuf);
     SetBounds(x0, Width, y0, Height);
-    WriteReg(0x21, y0); // Goto y0
     // Prepare variables
     Convert::WordBytes_t TheWord;
     uint32_t Cnt = (uint32_t)Width * (uint32_t)Height;    // One pixel at a time
@@ -267,7 +247,7 @@ struct BmpHeader_t {
 
 struct BmpInfo_t {  // Length is absent as read first
     uint32_t Width;
-    uint32_t Height;
+    int32_t Height;
     uint16_t Planes;
     uint16_t BitCnt;
     uint32_t Compression;
@@ -297,44 +277,46 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     }
 
     // ==== Read BITMAPFILEHEADER ====
-    rslt = f_read(PFile, IBuf, sizeof(BmpHeader_t), &RCnt);
-    if(rslt != FR_OK) goto end;
+    if(f_read(PFile, IBuf, sizeof(BmpHeader_t), &RCnt) != FR_OK) goto end;
     PHdr = (BmpHeader_t*)IBuf;
     Uart.Printf("T=%X; Sz=%u; Off=%u\r", PHdr->bfType, PHdr->bfSize, PHdr->bfOffBits);
     FOffset = PHdr->bfOffBits;
 
     // ==== Read BITMAPINFO ====
     // Get struct size => version
-    rslt = f_read(PFile, (uint8_t*)&Sz, 4, &RCnt);
-    if(rslt != FR_OK) goto end;
+    if(f_read(PFile, (uint8_t*)&Sz, 4, &RCnt) != FR_OK) goto end;
     if((Sz == 40) or (Sz == 52) or (Sz == 56)) {  // V3 or V4 adobe
         // Read Info
-        rslt = f_read(PFile, IBuf, Sz-4, &RCnt);
-        if(rslt != FR_OK) goto end;
+        if(f_read(PFile, IBuf, Sz-4, &RCnt) != FR_OK) goto end;
         BmpInfo_t *PInfo = (BmpInfo_t*)IBuf;
         Uart.Printf("W=%u; H=%u; BitCnt=%u; Cmp=%u; Sz=%u;  MskR=%X; MskG=%X; MskB=%X; MskA=%X\r",
                 PInfo->Width, PInfo->Height, PInfo->BitCnt, PInfo->Compression,
                 PInfo->SzImage, PInfo->RedMsk, PInfo->GreenMsk, PInfo->BlueMsk, PInfo->AlphaMsk);
-        Sz = PInfo->SzImage;
 
-        // Move to pixel data
-        rslt = f_lseek(PFile, FOffset);
-        if(rslt != FR_OK) goto end;
+        // Check row order
+        if(PInfo->Height < 0) { // Top to bottom, normal order. Just remove sign.
+            PInfo->Height = -PInfo->Height;
+        }
+        else SetDirHOrigBottomLeft(); // Bottom to top, set origin to bottom
+
+        // Move file cursor to pixel data
+        if(f_lseek(PFile, FOffset) != FR_OK) goto end;
 
         // Setup window
         SetBounds(x0, PInfo->Width, y0, PInfo->Height);
         WriteReg(0x21, y0); // Goto y0
-        // Write RAM
+        // ==== Write RAM ====
         PrepareToWriteGRAM();
         while(Sz) {
-            rslt = f_read(PFile, IBuf, BUF_SZ, &RCnt);
-            if(rslt != FR_OK) goto end;
+            if(f_read(PFile, IBuf, BUF_SZ, &RCnt) != FR_OK) goto end;
             for(uint32_t i=0; i<RCnt; i+=2) {
                 WriteByte(IBuf[i+1]);
                 WriteByte(IBuf[i]);
             }
             Sz -= RCnt;
         } // while Sz
+        // Restore normal origin and direction
+        SetDirHOrigTopLeft();
     } // if Sz
     else Uart.Printf("Core, V4 or V5");
     end:

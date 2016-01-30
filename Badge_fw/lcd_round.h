@@ -42,6 +42,9 @@ public:
     void Shutdown();
     void SetBrightness(uint16_t ABrightness);
     uint16_t GetBrightness() { return IBrightness; }
+    // Direction & Origin
+    void SetDirHOrigTopLeft()    { WriteReg(0x03, 0x12B0); } // HWM=1, ORG=1, ID=11=>origin top left
+    void SetDirHOrigBottomLeft() { WriteReg(0x03, 0x1290); } // HWM=1, ORG=1, ID=01=>origin bottom left
 
     // High-level
 //    void PutChar(char c);

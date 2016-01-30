@@ -35,17 +35,17 @@ int main(void) {
 
     Lcd.Init();
     Lcd.SetBrightness(100);
-    Lcd.PutBitmap(80, 20, 100, 150, NULL);
 
     Mem.Init();
-    PinSensors.Init();
     UsbMsd.Init();
 
     // FAT init
     FRESULT r = f_mount(&FatFS, "", 1); // Mount it now
     if(r != FR_OK) Uart.Printf("FS mount error: %u\r", r);
-    else Lcd.DrawBmpFile(0,0, "badge2016.bmp", &File);
+//    else Lcd.DrawBmpFile(0,0, "badge2016.bmp", &File);
+    else Lcd.DrawBmpFile(0,0, "sign2.bmp", &File);
 
+    PinSensors.Init();
     // Main cycle
     App.ITask();
 }
@@ -87,23 +87,24 @@ void App_t::ITask() {
             if(!FATFS_IS_OK()) {
                 rslt = f_mount(&FatFS, "", 1); // Mount it now
             }
-
             if(rslt == FR_OK) {
-                rslt = f_open(&File, "readme.txt", FA_READ);
-                if(rslt == FR_OK) {
-                    uint32_t BytesRead=0;
-                    rslt = f_read(&File, Buf, 255, &BytesRead);
-                    if(rslt == FR_OK) {
-                        Buf[BytesRead] = 0;
-                        Uart.Printf("> %S\r", Buf);
-                    }
-                    else Uart.Printf("Read error: %u\r", rslt);
-                    f_close(&File);
-                } // open OK
-                else Uart.Printf("Open error: %u\r", rslt);
+                // Search next bmp
+
+//                rslt = f_open(&File, "readme.txt", FA_READ);
+//                if(rslt == FR_OK) {
+//                    uint32_t BytesRead=0;
+//                    rslt = f_read(&File, Buf, 255, &BytesRead);
+//                    if(rslt == FR_OK) {
+//                        Buf[BytesRead] = 0;
+//                        Uart.Printf("> %S\r", Buf);
+//                    }
+//                    else Uart.Printf("Read error: %u\r", rslt);
+//                    f_close(&File);
+//                } // open OK
+//                else Uart.Printf("Open error: %u\r", rslt);
             }
             else Uart.Printf("FS mount error: %u\r", rslt);
-        }
+        } // EVTMSK_BTN_PRESS
     } // while true
 }
 
