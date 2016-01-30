@@ -18,6 +18,8 @@ App_t App;
 FATFS FatFS;
 FIL File;
 
+#define FATFS_IS_OK()   (FatFS.fs_type != 0)
+
 uint8_t Buf[256];
 
 int main(void) {
@@ -47,19 +49,6 @@ int main(void) {
     // FAT init
     FRESULT r = f_mount(&FatFS, "", 1); // Mount it now
     if(r != FR_OK) Uart.Printf("FS mount error: %u\r", r);
-    else {
-        r = f_open(&File, "readme.txt", FA_READ);
-        if(r != FR_OK) Uart.Printf("Open error: %u\r", r);
-        else {
-            uint32_t BytesRead=0;
-            r = f_read(&File, Buf, 255, &BytesRead);
-            if(r != FR_OK) Uart.Printf("Read error: %u\r", r);
-            else {
-                Buf[BytesRead] = 0;
-                Uart.Printf("> %S\r", Buf);
-            }
-        }
-    }
 
     // Main cycle
     App.ITask();
@@ -96,6 +85,29 @@ void App_t::ITask() {
             Uart.Printf("UsbReady\r");
         }
 #endif
+        if(EvtMsk & EVTMSK_BTN_PRESS) {
+            FRESULT rslt = FR_OK;
+            // Try to mount FS again if not mounted
+            if(!FATFS_IS_OK()) {
+                rslt = f_mount(&FatFS, "", 1); // Mount it now
+            }
+
+            if(rslt == FR_OK) {
+                rslt = f_open(&File, "readme.txt", FA_READ);
+                if(rslt == FR_OK) {
+                    uint32_t BytesRead=0;
+                    rslt = f_read(&File, Buf, 255, &BytesRead);
+                    if(rslt == FR_OK) {
+                        Buf[BytesRead] = 0;
+                        Uart.Printf("> %S\r", Buf);
+                    }
+                    else Uart.Printf("Read error: %u\r", rslt);
+                    f_close(&File);
+                } // open OK
+                else Uart.Printf("Open error: %u\r", rslt);
+            }
+            else Uart.Printf("FS mount error: %u\r", rslt);
+        }
     } // while true
 }
 
