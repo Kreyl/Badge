@@ -163,12 +163,12 @@ void chSysInit(void) {
  *
  * @special
  */
-void chSysHalt(const char *reason) {
+void chSysHalt(const char *reason, const char *message) {   // @KL: add message
 
   port_disable();
 
 #if defined(CH_CFG_SYSTEM_HALT_HOOK) || defined(__DOXYGEN__)
-  CH_CFG_SYSTEM_HALT_HOOK(reason);
+  CH_CFG_SYSTEM_HALT_HOOK(reason, message);
 #endif
 
   /* Pointing to the passed message.*/

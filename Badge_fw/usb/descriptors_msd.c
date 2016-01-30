@@ -5,10 +5,10 @@
  *      Author: Kreyl
  */
 
+#include <descriptors_msd.h>
 #include <inttypes.h>
 #include <stddef.h>
 
-#include "descriptors_mst.h"
 
 #if 1 // ==== Constants (not to change) ====
 #define EP_DIR_IN           0x80

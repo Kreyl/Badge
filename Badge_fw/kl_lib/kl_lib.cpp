@@ -550,27 +550,27 @@ uint32_t ArrToU32AsBE(uint8_t *PArr) {
 }
 void U16ChangeEndianness(uint16_t *p) { *p = __REV16(*p); }
 void U32ChangeEndianness(uint32_t *p) { *p = __REV(*p); }
-inline uint8_t TryStrToUInt32(char* S, uint32_t *POutput) {
+uint8_t TryStrToUInt32(char* S, uint32_t *POutput) {
     if(*S == '\0') return EMPTY;
     char *p;
     *POutput = strtoul(S, &p, 0);
     return (*p == 0)? OK : NOT_A_NUMBER;
 }
-inline uint8_t TryStrToInt32(char* S, int32_t *POutput) {
+uint8_t TryStrToInt32(char* S, int32_t *POutput) {
     if(*S == '\0') return EMPTY;
     char *p;
     *POutput = strtol(S, &p, 0);
     return (*p == '\0')? OK : NOT_A_NUMBER;
 }
 
-inline uint16_t BuildUint16(uint8_t Lo, uint8_t Hi) {
+uint16_t BuildUint16(uint8_t Lo, uint8_t Hi) {
     uint16_t r = Hi;
     r <<= 8;
     r |= Lo;
     return r;
 }
 
-inline uint32_t BuildUint32(uint8_t Lo, uint8_t MidLo, uint8_t MidHi, uint8_t Hi) {
+uint32_t BuildUint32(uint8_t Lo, uint8_t MidLo, uint8_t MidHi, uint8_t Hi) {
     uint32_t r = Hi;
     r <<= 8;
     r |= MidHi;

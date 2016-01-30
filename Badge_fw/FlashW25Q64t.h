@@ -12,8 +12,12 @@
 #include "kl_lib.h"
 #include "board.h"
 
-#define MEM_PAGE_SZ     256 // Defined in datasheet
 #define MEM_TIMEOUT     45000000
+
+#define MEM_PAGE_SZ     256  // Defined in datasheet
+#define MEM_PAGE_CNT    32768
+#define MEM_BLOCK_SZ    4096 // 16 pages
+#define MEM_BLOCK_CNT   2048 // 2048 blocks of 16 pages each
 
 class FlashW25Q64_t {
 private:

@@ -5,13 +5,13 @@
  *      Author: g.kruglov
  */
 
+#include <descriptors_msd.h>
+#include <usb_msd.h>
 #include "main.h"
 #include "lcd_round.h"
 #include "SimpleSensors.h"
 #include "FlashW25Q64t.h"
-#include "usb_mst.h"
 
-#include "descriptors_mst.h"
 
 App_t App;
 
@@ -37,7 +37,7 @@ int main(void) {
 
     Mem.Init();
     PinSensors.Init();
-    UsbMst.Init();
+    UsbMsd.Init();
 
     // Main cycle
     App.ITask();
@@ -65,7 +65,7 @@ void App_t::ITask() {
             if(r == OK) {
                 Clk.SelectUSBClock_HSI48();
                 Clk.EnableCRS();
-                UsbMst.Connect();
+                UsbMsd.Connect();
             }
             else Uart.Printf("Hsi Fail\r");
         }
