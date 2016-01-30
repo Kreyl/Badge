@@ -11,7 +11,7 @@
 #include "lcd_round.h"
 #include "SimpleSensors.h"
 #include "FlashW25Q64t.h"
-
+#include "ff.h"
 
 App_t App;
 

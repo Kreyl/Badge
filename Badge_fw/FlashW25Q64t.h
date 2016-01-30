@@ -26,8 +26,8 @@ private:
     uint8_t ReleasePWD();
     void WriteEnable();
     uint8_t BusyWait();
-
 public:
+    bool IsReady = false;
     uint8_t Init();
     uint8_t Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen);
     uint8_t WritePage(uint32_t Addr, uint8_t *PBuf, uint32_t ALen);

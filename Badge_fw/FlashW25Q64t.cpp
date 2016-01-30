@@ -36,6 +36,7 @@ uint8_t FlashW25Q64_t::Init() {
     ISpi.Enable();
     // Initialization cmds
     if(ReleasePWD() != OK) return FAILURE;
+    IsReady = true;
     return OK;
 }
 

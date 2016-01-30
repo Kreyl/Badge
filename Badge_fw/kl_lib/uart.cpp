@@ -8,6 +8,7 @@
 #include <string.h>
 #include "uart.h"
 #include "main.h" // App_t
+#include "kl_lib.h"
 
 Uart_t Uart;
 
