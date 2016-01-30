@@ -254,7 +254,9 @@ void UsbMsd_t::SCSICmdHandler() {
     // Stall if cmd failed and there is data to send
     bool ShouldSendStatus = true;
     if((CmdRslt != OK)) {
+        chSysLock();
         ShouldSendStatus = !usbStallTransmitI(&USBDrv, EP_DATA_IN_ID);  // transmit status if successfully stalled
+        chSysUnlock();
     }
     if(ShouldSendStatus) {
         TransmitBuf((uint8_t*)&CmdStatus, sizeof(MS_CommandStatusWrapper_t));
@@ -265,7 +267,7 @@ void UsbMsd_t::SCSICmdHandler() {
 }
 
 uint8_t UsbMsd_t::CmdInquiry() {
-    Uart.Printf("CmdInquiry\r");
+//    Uart.Printf("CmdInquiry\r");
     uint16_t RequestedLength = Convert::BuildUint16(CmdBlock.SCSICmdData[4], CmdBlock.SCSICmdData[3]);
     uint16_t BytesToTransfer;
     if(CmdBlock.SCSICmdData[1] & 0x01) {
@@ -277,12 +279,12 @@ uint8_t UsbMsd_t::CmdInquiry() {
         BytesToTransfer = MIN(RequestedLength, sizeof(SCSI_InquiryResponse_t));
         TransmitBuf((uint8_t*)&InquiryData, BytesToTransfer);
     }
-        // Succeed the command and update the bytes transferred counter
+    // Succeed the command and update the bytes transferred counter
     CmdBlock.DataTransferLen -= BytesToTransfer;
     return OK;
 }
 uint8_t UsbMsd_t::CmdRequestSense() {
-    Uart.Printf("CmdRequestSense\r");
+//    Uart.Printf("CmdRequestSense\r");
     uint16_t RequestedLength = CmdBlock.SCSICmdData[4];
     uint16_t BytesToTransfer = MIN(RequestedLength, sizeof(SenseData));
     // Transmit SenceData
@@ -292,7 +294,7 @@ uint8_t UsbMsd_t::CmdRequestSense() {
     return OK;
 }
 uint8_t UsbMsd_t::CmdReadCapacity10() {
-    Uart.Printf("CmdReadCapacity10\r");
+//    Uart.Printf("CmdReadCapacity10\r");
     ReadCapacity10Response.LastBlockAddr = __REV((uint32_t)MSD_BLOCK_CNT - 1);
     ReadCapacity10Response.BlockSize = __REV((uint32_t)MSD_BLOCK_SZ);
     // Transmit SenceData
@@ -306,7 +308,7 @@ uint8_t UsbMsd_t::CmdSendDiagnostic() {
     return CMD_UNKNOWN;
 }
 uint8_t UsbMsd_t::CmdReadFormatCapacities() {
-    Uart.Printf("CmdReadFormatCapacities\r");
+//    Uart.Printf("CmdReadFormatCapacities\r");
     ReadFormatCapacitiesResponse.Length = 0x08;
     ReadFormatCapacitiesResponse.NumberOfBlocks = __REV(MSD_BLOCK_CNT);
     // 01b Unformatted Media - Maximum formattable capacity for this cartridge
@@ -328,8 +330,8 @@ uint8_t UsbMsd_t::ReadWriteCommon(uint32_t *PAddr, uint16_t *PLen) {
     *PLen  = Convert::BuildUint16(CmdBlock.SCSICmdData[8], CmdBlock.SCSICmdData[7]);
 //    Uart.Printf("Addr=%u; Len=%u\r", BlockAddress, TotalBlocks);
     // Check block addr
-    if((*PAddr + *PLen) >= MSD_BLOCK_CNT) {
-        Uart.Printf("Out Of Range\r");
+    if((*PAddr + *PLen) > MSD_BLOCK_CNT) {
+        Uart.Printf("Out Of Range: Addr %u, Len %u\r", *PAddr, *PLen);
         SenseData.SenseKey = SCSI_SENSE_KEY_ILLEGAL_REQUEST;
         SenseData.AdditionalSenseCode = SCSI_ASENSE_LOGICAL_BLOCK_ADDRESS_OUT_OF_RANGE;
         SenseData.AdditionalSenseQualifier = SCSI_ASENSEQ_NO_QUALIFIER;
@@ -347,7 +349,7 @@ uint8_t UsbMsd_t::ReadWriteCommon(uint32_t *PAddr, uint16_t *PLen) {
 }
 
 uint8_t UsbMsd_t::CmdRead10() {
-    Uart.Printf("CmdRead10\r");
+//    Uart.Printf("CmdRead10\r");
     uint32_t BlockAddress=0;
     uint16_t TotalBlocks=0;
     if(ReadWriteCommon(&BlockAddress, &TotalBlocks) != OK) return FAILURE;
@@ -377,7 +379,7 @@ uint8_t UsbMsd_t::CmdRead10() {
 }
 
 uint8_t UsbMsd_t::CmdWrite10() {
-    Uart.Printf("CmdWrite10\r");
+//    Uart.Printf("CmdWrite10\r");
 #if READ_ONLY
     SenseData.SenseKey = SCSI_SENSE_KEY_DATA_PROTECT;
     SenseData.AdditionalSenseCode = SCSI_ASENSE_WRITE_PROTECTED;
@@ -427,7 +429,7 @@ uint8_t UsbMsd_t::CmdWrite10() {
 }
 
 uint8_t UsbMsd_t::CmdModeSense6() {
-    Uart.Printf("CmdModeSense6\r");
+//    Uart.Printf("CmdModeSense6\r");
     TransmitBuf((uint8_t*)&Mode_Sense6_data, MODE_SENSE6_DATA_SZ);
     // Succeed the command and update the bytes transferred counter
     CmdBlock.DataTransferLen -= MODE_SENSE6_DATA_SZ;

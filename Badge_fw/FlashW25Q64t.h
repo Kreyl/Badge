@@ -16,6 +16,7 @@
 
 #define MEM_PAGE_SZ     256  // Defined in datasheet
 #define MEM_PAGE_CNT    32768
+#define MEM_PAGES_IN_BLOCK_CNT  16
 #define MEM_BLOCK_SZ    4096 // 16 pages
 #define MEM_BLOCK_CNT   2048 // 2048 blocks of 16 pages each
 
