@@ -15,7 +15,9 @@
 
 App_t App;
 
-uint8_t Buf[256];
+uint8_t Buf[256];   // XXX
+
+const char Extension[] = "*.bmp";
 
 int main(void) {
     // ==== Setup clock frequency ====
@@ -40,10 +42,9 @@ int main(void) {
     UsbMsd.Init();
 
     // FAT init
-    FRESULT r = f_mount(&FatFS, "", 1); // Mount it now
-    if(r != FR_OK) Uart.Printf("FS mount error: %u\r", r);
-//    else Lcd.DrawBmpFile(0,0, "badge2016.bmp", &File);
-    else Lcd.DrawBmpFile(0,0, "sign2.bmp", &File);
+    FRESULT rslt = f_mount(&FatFS, "", 1); // Mount it now
+    if(rslt == FR_OK) App.DrawNextBmp();
+    else Uart.Printf("FS mount error: %u\r", rslt);
 
     PinSensors.Init();
     // Main cycle
@@ -58,7 +59,7 @@ void App_t::ITask() {
             OnCmd((Shell_t*)&Uart);
             Uart.SignalCmdProcessed();
         }
-#if 1 // ==== USB ====
+#if 0 // ==== USB ====
         if(EvtMsk & EVTMSK_USB_CONNECTED) {
             Uart.Printf("5v is here\r");
             chThdSleepMilliseconds(270);
@@ -87,23 +88,9 @@ void App_t::ITask() {
             if(!FATFS_IS_OK()) {
                 rslt = f_mount(&FatFS, "", 1); // Mount it now
             }
-            if(rslt == FR_OK) {
-                // Search next bmp
-
-//                rslt = f_open(&File, "readme.txt", FA_READ);
-//                if(rslt == FR_OK) {
-//                    uint32_t BytesRead=0;
-//                    rslt = f_read(&File, Buf, 255, &BytesRead);
-//                    if(rslt == FR_OK) {
-//                        Buf[BytesRead] = 0;
-//                        Uart.Printf("> %S\r", Buf);
-//                    }
-//                    else Uart.Printf("Read error: %u\r", rslt);
-//                    f_close(&File);
-//                } // open OK
-//                else Uart.Printf("Open error: %u\r", rslt);
-            }
+            if(rslt == FR_OK) App.DrawNextBmp();
             else Uart.Printf("FS mount error: %u\r", rslt);
+
         } // EVTMSK_BTN_PRESS
     } // while true
 }
@@ -121,6 +108,24 @@ void App_t::OnCmd(Shell_t *PShell) {
     else PShell->Ack(CMD_UNKNOWN);
 }
 #endif
+
+uint8_t App_t::DrawNextBmp() {
+    uint8_t rslt = f_findnext(&Dir, &FileInfo);
+    if(rslt == FR_OK and FileInfo.fname[0]) goto lbl_Found;
+    else {  // Not found, or dir closed
+        f_closedir(&Dir);
+        rslt = f_findfirst(&Dir, &FileInfo, "", Extension);
+        if(rslt == FR_OK and FileInfo.fname[0]) goto lbl_Found;
+        else {
+            Uart.Printf("Not found: %u\r", rslt);
+            return FAILURE;
+        }
+    } // findnext not succeded
+    lbl_Found:
+    Uart.Printf("%S; %S\r", FileInfo.fname, FileInfo.lfname);
+
+    return OK;
+}
 
 // 5v Sns
 void Process5VSns(PinSnsState_t *PState, uint32_t Len) {

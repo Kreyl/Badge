@@ -11,5 +11,7 @@
 
 extern FATFS FatFS;
 extern FIL File;
+extern DIR Dir;
+extern FILINFO FileInfo;
 
 #define FATFS_IS_OK()   (FatFS.fs_type != 0)

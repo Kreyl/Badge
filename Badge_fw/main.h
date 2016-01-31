@@ -20,6 +20,7 @@ class App_t {
 private:
     thread_t *PThread;
 public:
+    uint8_t DrawNextBmp();
     // Eternal methods
     void InitThread() { PThread = chThdGetSelfX(); }
     void SignalEvt(eventmask_t Evt) {

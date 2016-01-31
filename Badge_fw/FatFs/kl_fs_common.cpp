@@ -9,3 +9,5 @@
 
 FATFS FatFS;
 FIL File;
+DIR Dir;
+FILINFO FileInfo;
