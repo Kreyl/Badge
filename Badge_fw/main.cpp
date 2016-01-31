@@ -120,7 +120,7 @@ uint8_t App_t::DrawNextBmp() {
         }
     } // findnext not succeded
     lbl_Found:
-    Uart.Printf("%S\r", FileInfo.fname);
+    Uart.PrintfNow("%S\r", FileInfo.fname);
     Lcd.DrawBmpFile(0,0, FileInfo.fname, &File);
     return OK;
 }

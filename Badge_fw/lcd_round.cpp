@@ -270,14 +270,22 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
         else Uart.Printf("OpenFile error: %u", rslt);
         return;
     }
+
+    // Increase MCU freq
+    uint32_t Dividers = Clk.GetAhbApbDividers();
+    Uart.PrintfNow("cr21=%X\r", RCC->CR2);
+    bool Hsi48IsOn = false;//Clk.IsHSI48On();
+    chSysLock();
+    Clk.SetupFlashLatency(48000000);
+    Clk.SetupBusDividers(ahbDiv1, apbDiv1);
+    if(!Hsi48IsOn) Clk.SwitchTo(csHSI48);
+    chSysUnlock();
+
     // Check if zero file
     if(PFile->fsize == 0) {
         Uart.Printf("Empty file\r");
         goto end;
     }
-
-    // Increase MCU freq
-//    if(Clk
 
     // ==== Read BITMAPFILEHEADER ====
     if(f_read(PFile, IBuf, sizeof(BmpHeader_t), &RCnt) != FR_OK) goto end;
@@ -324,5 +332,19 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     else Uart.Printf("Core, V4 or V5");
     end:
     f_close(PFile);
+
+//    tics = TIM2->CNT - tics;
+    // Switch back low freq
+    chSysLock();
+    Clk.SetupBusDividers(Dividers);
+    if(!Hsi48IsOn) {    // Switch hsi48 off if was not on
+        Clk.SwitchTo(csHSI);
+        Clk.DisableHSI48();
+    }
+    Clk.SetupFlashLatency(Clk.AHBFreqHz);   // Setup flash according to saved clk value
+//    Clk.UpdateFreqValues();
+    chSysUnlock();
+    Clk.PrintFreqs();
+    Uart.Printf("cr22=%X\r", RCC->CR2);
 }
 #endif

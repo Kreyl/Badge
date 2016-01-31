@@ -185,15 +185,22 @@ public:
     uint8_t TimerClkMulti = 1;
     // SysClk switching
     uint8_t SwitchTo(ClkSrc_t AClkSrc);
+    // Clk Enables
+    void EnableCRS();
     void EnableCSS()  { RCC->CR |=  RCC_CR_CSSON; }
+    // Clk Disables
     void DisableCSS() { RCC->CR &= ~RCC_CR_CSSON; }
     void DisableHSE() { RCC->CR &= ~RCC_CR_HSEON; }
     void DisableHSI() { RCC->CR &= ~RCC_CR_HSION; }
     void DisablePLL() { RCC->CR &= ~RCC_CR_PLLON; }
     void DisableHSI48() { RCC->CR2 &= RCC_CR2_HSI48ON; }
-    void EnableCRS();
+    // Checks
+    bool IsHSI48On() { return (RCC->CR2 & RCC_CR2_HSI48ON); }
+    uint32_t GetAhbApbDividers() { return RCC->CFGR & (RCC_CFGR_HPRE | RCC_CFGR_PPRE); }
+    // Setups
     void SelectUSBClock_HSI48() { RCC->CFGR3 &= ~RCC_CFGR3_USBSW; }
     void SetupBusDividers(AHBDiv_t AHBDiv, APBDiv_t APBDiv);
+    void SetupBusDividers(uint32_t Dividers);
     uint8_t SetupPLLDividers(uint8_t HsePreDiv, PllMul_t PllMul);
     void UpdateFreqValues();
     void SetupFlashLatency(uint32_t FrequencyHz);

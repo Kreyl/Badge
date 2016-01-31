@@ -263,7 +263,7 @@ uint8_t Clk_t::EnableHSI48() {
     RCC->CR2 |= RCC_CR2_HSI48ON;
     uint32_t StartUpCounter=0;
     do {
-        if(RCC->CR2 & RCC_CR2_HSI48RDY) return 0;   // PLL is ready
+        if(RCC->CR2 & RCC_CR2_HSI48RDY) return 0;   // Clock is ready
         StartUpCounter++;
     } while(StartUpCounter < CLK_STARTUP_TIMEOUT);
     return 1; // Timeout
@@ -320,11 +320,16 @@ void Clk_t::UpdateFreqValues() {
 // ==== Common use ====
 // AHB, APB
 void Clk_t::SetupBusDividers(AHBDiv_t AHBDiv, APBDiv_t APBDiv) {
-    // Setup dividers
     uint32_t tmp = RCC->CFGR;
     tmp &= ~(RCC_CFGR_HPRE | RCC_CFGR_PPRE);  // Clear bits
     tmp |= ((uint32_t)AHBDiv)  << 4;
     tmp |= ((uint32_t)APBDiv) << 8;
+    RCC->CFGR = tmp;
+}
+void Clk_t::SetupBusDividers(uint32_t Dividers) {
+    uint32_t tmp = RCC->CFGR;
+    tmp &= ~(RCC_CFGR_HPRE | RCC_CFGR_PPRE);  // Clear bits
+    tmp |= Dividers;
     RCC->CFGR = tmp;
 }
 
