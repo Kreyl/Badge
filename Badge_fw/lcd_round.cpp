@@ -260,7 +260,7 @@ struct BmpInfo_t {  // Length is absent as read first
 
 
 void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile) {
-    Uart.Printf("Draw %S\r", Filename);
+//    Uart.Printf("Draw %S\r", Filename);
     uint32_t RCnt=0, Sz=0, FOffset;
     BmpHeader_t *PHdr;
     // Open file
@@ -276,10 +276,13 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
         goto end;
     }
 
+    // Increase MCU freq
+//    if(Clk
+
     // ==== Read BITMAPFILEHEADER ====
     if(f_read(PFile, IBuf, sizeof(BmpHeader_t), &RCnt) != FR_OK) goto end;
     PHdr = (BmpHeader_t*)IBuf;
-    Uart.Printf("T=%X; Sz=%u; Off=%u\r", PHdr->bfType, PHdr->bfSize, PHdr->bfOffBits);
+//    Uart.Printf("T=%X; Sz=%u; Off=%u\r", PHdr->bfType, PHdr->bfSize, PHdr->bfOffBits);
     FOffset = PHdr->bfOffBits;
 
     // ==== Read BITMAPINFO ====
@@ -289,9 +292,10 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
         // Read Info
         if(f_read(PFile, IBuf, Sz-4, &RCnt) != FR_OK) goto end;
         BmpInfo_t *PInfo = (BmpInfo_t*)IBuf;
-        Uart.Printf("W=%u; H=%u; BitCnt=%u; Cmp=%u; Sz=%u;  MskR=%X; MskG=%X; MskB=%X; MskA=%X\r",
-                PInfo->Width, PInfo->Height, PInfo->BitCnt, PInfo->Compression,
-                PInfo->SzImage, PInfo->RedMsk, PInfo->GreenMsk, PInfo->BlueMsk, PInfo->AlphaMsk);
+//        Uart.Printf("W=%u; H=%u; BitCnt=%u; Cmp=%u; Sz=%u;  MskR=%X; MskG=%X; MskB=%X; MskA=%X\r",
+//                PInfo->Width, PInfo->Height, PInfo->BitCnt, PInfo->Compression,
+//                PInfo->SzImage, PInfo->RedMsk, PInfo->GreenMsk, PInfo->BlueMsk, PInfo->AlphaMsk);
+        Sz = PInfo->SzImage;
 
         // Check row order
         if(PInfo->Height < 0) { // Top to bottom, normal order. Just remove sign.
@@ -304,7 +308,6 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
 
         // Setup window
         SetBounds(x0, PInfo->Width, y0, PInfo->Height);
-        WriteReg(0x21, y0); // Goto y0
         // ==== Write RAM ====
         PrepareToWriteGRAM();
         while(Sz) {

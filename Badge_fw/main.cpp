@@ -15,8 +15,7 @@
 
 App_t App;
 
-uint8_t Buf[256];   // XXX
-
+// Extension of graphic files to search
 const char Extension[] = "*.bmp";
 
 int main(void) {
@@ -41,7 +40,7 @@ int main(void) {
     Mem.Init();
     UsbMsd.Init();
 
-    // FAT init
+    // ==== FAT init ====
     FRESULT rslt = f_mount(&FatFS, "", 1); // Mount it now
     if(rslt == FR_OK) App.DrawNextBmp();
     else Uart.Printf("FS mount error: %u\r", rslt);
@@ -90,7 +89,6 @@ void App_t::ITask() {
             }
             if(rslt == FR_OK) App.DrawNextBmp();
             else Uart.Printf("FS mount error: %u\r", rslt);
-
         } // EVTMSK_BTN_PRESS
     } // while true
 }
@@ -122,8 +120,8 @@ uint8_t App_t::DrawNextBmp() {
         }
     } // findnext not succeded
     lbl_Found:
-    Uart.Printf("%S; %S\r", FileInfo.fname, FileInfo.lfname);
-
+    Uart.Printf("%S\r", FileInfo.fname);
+    Lcd.DrawBmpFile(0,0, FileInfo.fname, &File);
     return OK;
 }
 
