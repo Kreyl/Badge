@@ -46,7 +46,7 @@ static const USBEndpointConfig ep1config = {
 static void usb_event(USBDriver *usbp, usbevent_t event) {
     switch (event) {
         case USB_EVENT_RESET:
-            UsbMsd.IsReady = false;
+//            UsbMsd.IsReady = false;
             return;
         case USB_EVENT_ADDRESS:
             return;
@@ -57,12 +57,12 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
             usbInitEndpointI(usbp, EP_DATA_IN_ID,  &ep1config);
             usbInitEndpointI(usbp, EP_DATA_OUT_ID, &ep1config);
             App.SignalEvtI(EVTMSK_USB_READY);
-            UsbMsd.IsReady = true;
+//            UsbMsd.IsReady = true;
             chEvtSignalI(UsbMsd.PThread, EVTMSK_USB_READY);
             chSysUnlockFromISR();
             return;
         case USB_EVENT_SUSPEND:
-            UsbMsd.IsReady = false;
+//            UsbMsd.IsReady = false;
             return;
         case USB_EVENT_WAKEUP:
             return;

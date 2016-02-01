@@ -74,7 +74,7 @@ private:
     void TransmitBuf(uint8_t *Ptr, uint32_t Len);
     uint8_t ReceiveToBuf(uint8_t *Ptr, uint32_t Len);
 public:
-    bool IsReady;
+//    bool IsReady;
     void Init();
     void Reset();
     void Connect();

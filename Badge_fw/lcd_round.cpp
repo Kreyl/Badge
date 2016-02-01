@@ -4,6 +4,7 @@
 #include <stdarg.h>
 #include "core_cmInstr.h"
 #include "uart.h"
+#include "main.h"
 
 //#include "lcdFont8x8.h"
 #include <string.h>
@@ -13,55 +14,53 @@ Lcd_t Lcd;
 
 struct RegData_t {
     uint16_t Reg, Data;
-    uint32_t Delay;
 };
 const RegData_t InitData[] = {
-//        {0xA4, 0x0001, 10}, // NVM calibration
-//        {0x60, 0x2700, 0},  // (def) Driver output control: number of lines = 320, gate start = 0
-//        {0x08, 0x0808, 0},  // (def) front and back porch period
+//        {0xA4, 0x0001}, // NVM calibration
+//        {0x60, 0x2700},  // (def) Driver output control: number of lines = 320, gate start = 0
+//        {0x08, 0x0808},  // (def) front and back porch period
         // Gamma correction
- /*       {0x30, 0x0214, 0},
-        {0x31, 0x3715, 0},
-        {0x32, 0x0604, 0},
-        {0x33, 0x0E16, 0},
-        {0x34, 0x2211, 0},
-        {0x35, 0x1500, 0},
-        {0x36, 0x8507, 0},
-        {0x37, 0x1407, 0},
-        {0x38, 0x1403, 0},
-        {0x39, 0x0020, 0},*/
+ /*       {0x30, 0x0214},
+        {0x31, 0x3715},
+        {0x32, 0x0604},
+        {0x33, 0x0E16},
+        {0x34, 0x2211},
+        {0x35, 0x1500},
+        {0x36, 0x8507},
+        {0x37, 0x1407},
+        {0x38, 0x1403},
+        {0x39, 0x0020},*/
 
-//        {0x90, 0x0015, 0},  // (def 0x0111) division 1/1, line period 21clk
-//        {0x10, 0x0410, 0},
-//        {0x11, 0x0237, 0},
+//        {0x90, 0x0015},  // (def 0x0111) division 1/1, line period 21clk
+//        {0x10, 0x0410},
+//        {0x11, 0x0237},
 
-        {0x29, 0x0046, 0},
-        {0x2A, 0x0046, 0},
-        {0x07, 0x0000, 0},
-        {0x12, 0x0189, 0},
-        {0x13, 0x1100, 150},
+        {0x29, 0x0046},
+        {0x2A, 0x0046},
+        {0x07, 0x0000},
+        {0x12, 0x0189},
+        {0x13, 0x1100},
 
-        {0x12, 0x01B9, 0},
-        {0x01, 0x0100, 0},
-        {0x02, 0x0200, 0},
-//        {0x03, 0x1230, 0},  // HWM=1, ORG=0
-        {0x03, 0x12B0, 0},  // HWM=1, ORG=1, ID=11=>origin top left
-        {0x09, 0x0001, 0},
-        {0x0A, 0x0000, 0},
-        {0x0D, 0x0000, 0},
-        {0x0E, 0x0030, 0},
-        {0x50, 0x0000, 0},
-        {0x51, 0x00EF, 0},
-        {0x52, 0x0000, 0},
-        {0x53, 0x013F, 0},
-        {0x61, 0x0001, 0},
-        {0x6A, 0x0000, 0},
-        {0x80, 0x0000, 0},
-        {0x81, 0x0000, 0},
-        {0x82, 0x005F, 0},
-        {0x92, 0x0100, 0},
-        {0x93, 0x0701, 80},
-        {0x07, 0x0100, 0},
+        {0x12, 0x01B9},
+        {0x01, 0x0100},
+        {0x02, 0x0200},
+        {0x03, 0x12B0},  // HWM=1, ORG=1, ID=11=>origin top left
+        {0x09, 0x0001},
+        {0x0A, 0x0000},
+        {0x0D, 0x0000},
+        {0x0E, 0x0030},
+        {0x50, 0x0000},
+        {0x51, 0x00EF},
+        {0x52, 0x0000},
+        {0x53, 0x013F},
+        {0x61, 0x0001},
+        {0x6A, 0x0000},
+        {0x80, 0x0000},
+        {0x81, 0x0000},
+        {0x82, 0x005F},
+        {0x92, 0x0100},
+        {0x93, 0x0701},
+        {0x07, 0x0100},
 };
 #define INIT_SEQ_CNT    countof(InitData)
 
@@ -130,7 +129,6 @@ void Lcd_t::Init() {
     for(uint32_t i=0; i<INIT_SEQ_CNT; i++) {
         WriteReg(InitData[i].Reg, InitData[i].Data);
 //        Uart.Printf("%X %X\r", InitData[i].Reg, InitData[i].Data);
-        if(InitData[i].Delay > 0) chThdSleepMilliseconds(InitData[i].Delay);
     }
     Cls(clBlack);
 }
@@ -271,14 +269,18 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
         return;
     }
 
-    // Increase MCU freq
+    // Switch off backlight to save power
+    Led1.Set(0);
+    Led2.Set(0);
+
+    // ==== Increase MCU freq ====
     uint32_t Dividers = Clk.GetAhbApbDividers();
     Uart.PrintfNow("cr21=%X\r", RCC->CR2);
-    bool Hsi48IsOn = Clk.IsHSI48On();
+    bool Hsi48WasOn = Clk.IsHSI48On();
     chSysLock();
     Clk.SetupFlashLatency(48000000);
     Clk.SetupBusDividers(ahbDiv1, apbDiv1);
-    if(!Hsi48IsOn) Clk.SwitchTo(csHSI48);
+    if(!Hsi48WasOn) Clk.SwitchTo(csHSI48);  // Switch HSI48 on if was off
     chSysUnlock();
     Uart.PrintfNow("cr22=%X\r", RCC->CR2);
 
@@ -337,7 +339,7 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     // Switch back low freq
     chSysLock();
     Clk.SetupBusDividers(Dividers);
-    if(!Hsi48IsOn) {    // Switch hsi48 off if was not on
+    if(!Hsi48WasOn) {    // Switch hsi48 off if was off
         Clk.SwitchTo(csHSI);
         Clk.DisableHSI48();
     }
@@ -346,5 +348,12 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     chSysUnlock();
     Clk.PrintFreqs();
     Uart.Printf("cr23=%X\r", RCC->CR2);
+
+    // Restore backlight
+    Led1.Set(IBrightness);
+    Led2.Set(IBrightness);
+
+    // Signal Draw Completed
+    App.SignalEvt(EVTMSK_LCD_DRAW_DONE);
 }
 #endif
