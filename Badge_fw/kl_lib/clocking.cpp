@@ -424,8 +424,17 @@ void Clk_t::EnableCRS() {
     CRS->CR |= (HSI48_CALIBRATN << 8);
     // Enable auto trimming
     CRS->CR |= CRS_CR_AUTOTRIMEN;
+    // Setup USB clock source = HSI48
+    RCC->CFGR3 &= ~RCC_CFGR3_USBSW;
     // Enable Frequency error counter
     CRS->CR |= CRS_CR_CEN;
+}
+
+void Clk_t::DisableCRS() {
+    CRS->CR &= ~CRS_CR_CEN;
+    RCC->APB1ENR &= ~RCC_APB1ENR_CRSEN;
+    // Setup USB clock source = PLLCLK to allow switch off HSI48
+    RCC->CFGR3 |= RCC_CFGR3_USBSW;
 }
 
 /*

@@ -336,7 +336,7 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     end:
     f_close(PFile);
 
-    // Switch back low freq
+    // ==== Switch back low freq ====
     chSysLock();
     Clk.SetupBusDividers(Dividers);
     if(!Hsi48WasOn) {    // Switch hsi48 off if was off

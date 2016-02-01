@@ -80,13 +80,29 @@ void App_t::ITask() {
             chSysLock();
             uint8_t r = Clk.SwitchTo(csHSI48);
             Clk.UpdateFreqValues();
-            Uart.OnAHBFreqChange();
             chSysUnlock();
             Clk.PrintFreqs();
             if(r == OK) {
                 Clk.SelectUSBClock_HSI48();
                 Clk.EnableCRS();
                 UsbMsd.Connect();
+            }
+            else Uart.Printf("Hsi48 Fail\r");
+        }
+
+        if(EvtMsk & EVTMSK_USB_DISCONNECTED) {
+            Uart.Printf("5v off\r");
+            // Disable Usb & HSI48
+            UsbMsd.Disconnect();
+            chSysLock();
+            uint8_t r = Clk.SwitchTo(csHSI);
+            Clk.UpdateFreqValues();
+            chSysUnlock();
+            Clk.PrintFreqs();
+            if(r == OK) {
+                Clk.DisableCRS();
+                Clk.DisableHSI48();
+                Uart.Printf("cr2=%X\r", RCC->CR2);
             }
             else Uart.Printf("Hsi Fail\r");
         }

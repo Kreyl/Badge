@@ -194,6 +194,7 @@ public:
     void DisableHSI()   { RCC->CR  &= ~RCC_CR_HSION; }
     void DisablePLL()   { RCC->CR  &= ~RCC_CR_PLLON; }
     void DisableHSI48() { RCC->CR2 &= ~RCC_CR2_HSI48ON; }
+    void DisableCRS();
     // Checks
     bool IsHSI48On() { return (RCC->CR2 & RCC_CR2_HSI48ON); }
     uint32_t GetAhbApbDividers() { return RCC->CFGR & (RCC_CFGR_HPRE | RCC_CFGR_PPRE); }

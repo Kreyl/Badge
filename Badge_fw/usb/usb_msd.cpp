@@ -162,8 +162,6 @@ void UsbMsd_t::Task() {
 void UsbMsd_t::Init() {
     PinSetupAnalog(GPIOA, 11);
     PinSetupAnalog(GPIOA, 12);
-    // Objects
-    usbInit();
     // Variables
     SenseData.ResponseCode = 0x70;
     SenseData.AddSenseLen = 0x0A;
@@ -179,10 +177,15 @@ void UsbMsd_t::Reset() {
 }
 
 void UsbMsd_t::Connect() {
+    usbInit();
     usbDisconnectBus(&USBDrv);
     chThdSleepMilliseconds(1500);
     usbStart(&USBDrv, &UsbCfg);
     usbConnectBus(&USBDrv);
+}
+void UsbMsd_t::Disconnect() {
+    usbDisconnectBus(&USBDrv);
+    usbStop(&USBDrv);
 }
 
 void UsbMsd_t::TransmitBuf(uint8_t *Ptr, uint32_t Len) {
