@@ -34,6 +34,20 @@ int main(void) {
     Uart.Printf("\r%S %S\r", APP_NAME, APP_VERSION);
     Clk.PrintFreqs();
 
+
+//    Uart.PrintfNow("cr20=%X; cfgr=%X; cfgr3=%X\r", RCC->CR2, RCC->CFGR, RCC->CFGR3);
+//    while(true) {
+//        chThdSleepMilliseconds(540);
+//        Clk.EnableHSI48();
+//        Uart.PrintfNow("cr21=%X; cfgr=%X; cfgr3=%X\r", RCC->CR2, RCC->CFGR, RCC->CFGR3);
+//        chThdSleepMilliseconds(540);
+////        RCC->CFGR3 |= RCC_CFGR3_USBSW_PLLCLK;
+////        RCC->CR2 = 0;
+////        RCC->CR2 &=
+//        Clk.DisableHSI48();
+//        Uart.PrintfNow("cr22=%X; cfgr=%X; cfgr3=%X\r", RCC->CR2, RCC->CFGR, RCC->CFGR3);
+//    }
+
     Lcd.Init();
     Lcd.SetBrightness(100);
 
@@ -58,7 +72,7 @@ void App_t::ITask() {
             OnCmd((Shell_t*)&Uart);
             Uart.SignalCmdProcessed();
         }
-#if 0 // ==== USB ====
+#if 1 // ==== USB ====
         if(EvtMsk & EVTMSK_USB_CONNECTED) {
             Uart.Printf("5v is here\r");
             chThdSleepMilliseconds(270);

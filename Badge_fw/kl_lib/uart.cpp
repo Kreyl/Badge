@@ -164,7 +164,14 @@ void Uart_t::Init(uint32_t ABaudrate, GPIO_TypeDef *PGpioTx, const uint16_t APin
     if(UART == USART1) {rccEnableUSART1(FALSE); }
     else if(UART == USART2) {rccEnableUSART2(FALSE); }
 
+#if defined STM32F072xB
+    // Setup HSI as UART's clk src
+    if(UART == USART1) RCC->CFGR3 |= RCC_CFGR3_USART1SW_HSI;
+    else if(UART == USART2) RCC->CFGR3 |= RCC_CFGR3_USART2SW_HSI;
+    OnAHBFreqChange();
+#else
     OnAHBFreqChange();  // Setup baudrate
+#endif
 
     UART->CR2 = 0;
 #if UART_USE_DMA    // ==== DMA ====
@@ -210,6 +217,9 @@ void Uart_t::OnAHBFreqChange() {
 #if defined STM32L1XX || defined STM32F100_MCUCONF
     if(UART == USART1) UART->BRR = Clk.APB2FreqHz / IBaudrate;
     else               UART->BRR = Clk.APB1FreqHz / IBaudrate;
+#elif defined STM32F072xB
+    if(UART == USART1 or UART == USART2) UART->BRR = HSI_FREQ_HZ / IBaudrate;
+    else UART->BRR = Clk.APBFreqHz / IBaudrate;
 #elif defined STM32F0XX
     UART->BRR = Clk.APBFreqHz / IBaudrate;
 #elif defined STM32F2XX || defined STM32F4XX

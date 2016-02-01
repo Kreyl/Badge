@@ -274,12 +274,13 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     // Increase MCU freq
     uint32_t Dividers = Clk.GetAhbApbDividers();
     Uart.PrintfNow("cr21=%X\r", RCC->CR2);
-    bool Hsi48IsOn = false;//Clk.IsHSI48On();
+    bool Hsi48IsOn = Clk.IsHSI48On();
     chSysLock();
     Clk.SetupFlashLatency(48000000);
     Clk.SetupBusDividers(ahbDiv1, apbDiv1);
     if(!Hsi48IsOn) Clk.SwitchTo(csHSI48);
     chSysUnlock();
+    Uart.PrintfNow("cr22=%X\r", RCC->CR2);
 
     // Check if zero file
     if(PFile->fsize == 0) {
@@ -333,7 +334,6 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     end:
     f_close(PFile);
 
-//    tics = TIM2->CNT - tics;
     // Switch back low freq
     chSysLock();
     Clk.SetupBusDividers(Dividers);
@@ -345,6 +345,6 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
 //    Clk.UpdateFreqValues();
     chSysUnlock();
     Clk.PrintFreqs();
-    Uart.Printf("cr22=%X\r", RCC->CR2);
+    Uart.Printf("cr23=%X\r", RCC->CR2);
 }
 #endif

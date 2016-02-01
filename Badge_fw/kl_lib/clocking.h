@@ -177,7 +177,6 @@ private:
     uint8_t EnableHSE();
     uint8_t EnableHSI();
     uint8_t EnablePLL();
-    uint8_t EnableHSI48();
 public:
     // Frequency values
     uint32_t AHBFreqHz;     // HCLK: AHB Bus, Core, Memory, DMA; 48 MHz max
@@ -186,14 +185,15 @@ public:
     // SysClk switching
     uint8_t SwitchTo(ClkSrc_t AClkSrc);
     // Clk Enables
+    uint8_t EnableHSI48();
     void EnableCRS();
-    void EnableCSS()  { RCC->CR |=  RCC_CR_CSSON; }
+    void EnableCSS()    { RCC->CR  |=  RCC_CR_CSSON; }
     // Clk Disables
-    void DisableCSS() { RCC->CR &= ~RCC_CR_CSSON; }
-    void DisableHSE() { RCC->CR &= ~RCC_CR_HSEON; }
-    void DisableHSI() { RCC->CR &= ~RCC_CR_HSION; }
-    void DisablePLL() { RCC->CR &= ~RCC_CR_PLLON; }
-    void DisableHSI48() { RCC->CR2 &= RCC_CR2_HSI48ON; }
+    void DisableCSS()   { RCC->CR  &= ~RCC_CR_CSSON; }
+    void DisableHSE()   { RCC->CR  &= ~RCC_CR_HSEON; }
+    void DisableHSI()   { RCC->CR  &= ~RCC_CR_HSION; }
+    void DisablePLL()   { RCC->CR  &= ~RCC_CR_PLLON; }
+    void DisableHSI48() { RCC->CR2 &= ~RCC_CR2_HSI48ON; }
     // Checks
     bool IsHSI48On() { return (RCC->CR2 & RCC_CR2_HSI48ON); }
     uint32_t GetAhbApbDividers() { return RCC->CFGR & (RCC_CFGR_HPRE | RCC_CFGR_PPRE); }
