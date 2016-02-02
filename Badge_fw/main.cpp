@@ -41,14 +41,6 @@ int main(void) {
     Lcd.SetBrightness(100);
 
     Mem.Init();
-
-//    Mem.Read(0,buf,64);
-//    Uart.Printf("%A\r", buf, 64, ' ');
-//
-//    while(true) {
-//        chThdSleepMilliseconds(720);
-//    }
-
     UsbMsd.Init();
 
     // ==== FAT init ====

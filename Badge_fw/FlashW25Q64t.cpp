@@ -44,15 +44,12 @@ uint8_t FlashW25Q64_t::Init() {
     // ==== SPI ====    MSB first, master, ClkLowIdle, FirstEdge, Baudrate=f/2
     ISpi.Setup(MEM_SPI, boMSB, cpolIdleLow, cphaFirstEdge, sbFdiv2);
     ISpi.EnableRxDma();
-    ISpi.EnableTxDma();
     ISpi.Enable();
     chBSemObjectInit(&ISemaphore, NOT_TAKEN);
 
     // DMA
     dmaStreamAllocate     (SPI1_DMA_RX, IRQ_PRIO_LOW, MemDmaEndIrq, NULL);
     dmaStreamSetPeripheral(SPI1_DMA_RX, &MEM_SPI->DR);
-    dmaStreamAllocate     (SPI1_DMA_TX, IRQ_PRIO_LOW, MemDmaEndIrq, NULL);
-    dmaStreamSetPeripheral(SPI1_DMA_TX, &MEM_SPI->DR);
 
     // Initialization cmds
     if(ReleasePWD() != OK) return FAILURE;
@@ -85,7 +82,6 @@ uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     // ==== Send Cmd & Addr ====
     ISendCmdAndAddr(0x03, Addr);    // Cmd Read
     // ==== Read Data ====
-    ISpi.ClearRxBuf();
     ISpi.Disable();
     ISpi.SetRxOnly();   // Will not set if enabled
     dmaStreamSetMemory0(SPI1_DMA_RX, PBuf);
@@ -99,9 +95,8 @@ uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     chSysUnlock();
     dmaStreamDisable(SPI1_DMA_RX);
     CsHi();
-    ISpi.Disable();
     ISpi.SetFullDuplex();   // Remove read-only mode
-    ISpi.Enable();
+    ISpi.ClearRxBuf();
 
     chBSemSignal(&ISemaphore);  // Release semaphore
     return OK;
@@ -118,17 +113,14 @@ uint8_t FlashW25Q64_t::EraseAndWriteSector4k(uint32_t Addr, uint8_t *PBuf) {
     for(uint32_t i=0; i < MEM_PAGES_IN_SECTOR_CNT; i++) {
         WriteEnable();
         CsLo();
-        ISpi.ReadWriteByte(0x02);   // Send cmd code
-        // Send addr
-        ISpi.ReadWriteByte((Addr >> 16) & 0xFF);
-        ISpi.ReadWriteByte((Addr >> 8) & 0xFF);
-        ISpi.ReadWriteByte(Addr & 0xFF);
+        ISendCmdAndAddr(0x02, Addr);    // Cmd Write
         // Write data
         for(uint32_t j=0; j < MEM_PAGE_SZ; j++) {
             ISpi.ReadWriteByte(*PBuf);
             PBuf++;
         }
         CsHi();
+        ISpi.ClearRxBuf();
         // Wait completion
         rslt = BusyWait();
         if(rslt != OK) goto end;
@@ -146,20 +138,8 @@ void FlashW25Q64_t::ISendCmdAndAddr(uint8_t Cmd, uint32_t Addr) {
     dwb.DWord = Addr;
     ReverseByteOrder32(dwb.DWord);
     dwb.b[0] = Cmd;
-    ITxData(dwb.b, 4);
+    for(uint8_t i=0; i<4; i++) ISpi.ReadWriteByte(dwb.b[i]);
 }
-
-void FlashW25Q64_t::ITxData(uint8_t *Ptr, uint32_t Len) {
-    dmaStreamSetMemory0(SPI1_DMA_TX, Ptr);
-    dmaStreamSetTransactionSize(SPI1_DMA_TX, Len);
-    dmaStreamSetMode(SPI1_DMA_TX, MEM_TX_DMA_MODE);
-    chSysLock();
-    dmaStreamEnable(SPI1_DMA_TX);
-    chThdSuspendS(&trp);
-    chSysUnlock();
-    dmaStreamDisable(SPI1_DMA_TX);
-}
-
 
 uint8_t FlashW25Q64_t::WritePage(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     WriteEnable();
@@ -181,14 +161,7 @@ uint8_t FlashW25Q64_t::WritePage(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
 uint8_t FlashW25Q64_t::EraseSector4k(uint32_t Addr) {
     WriteEnable();
     CsLo();
-//    ISendCmdAndAddr(0x20, Addr);
-//    ISpi.WaitFTLVLZero();
-//    ISpi.WaitBsyHi2Lo();
-    ISpi.ReadWriteByte(0x20);   // Send cmd code
-    // Send addr
-    ISpi.ReadWriteByte((Addr >> 16) & 0xFF);
-    ISpi.ReadWriteByte((Addr >> 8) & 0xFF);
-    ISpi.ReadWriteByte(Addr & 0xFF);
+    ISendCmdAndAddr(0x20, Addr);
     CsHi();
     return BusyWait(); // Wait completion
 }
@@ -197,14 +170,6 @@ void FlashW25Q64_t::WriteEnable() {
     CsLo();
     ISpi.ReadWriteByte(0x06);
     CsHi();
-}
-
-uint8_t FlashW25Q64_t::ReadStatusReg1() {
-    CsLo();
-    ISpi.ReadWriteByte(0x05);
-    uint8_t r = ISpi.ReadWriteByte(0);
-    CsHi();
-    return r;
 }
 
 uint8_t FlashW25Q64_t::BusyWait() {
@@ -219,33 +184,5 @@ uint8_t FlashW25Q64_t::BusyWait() {
     CsHi();
     if(t == 0) return TIMEOUT;
     else return OK;
-}
-
-
-void FlashW25Q64_t::ReadJEDEC() {
-    uint8_t r;
-    CsLo();
-    ISpi.ReadWriteByte(0x9F);
-    r = ISpi.ReadWriteByte(0);
-    Uart.Printf("ManufID: 0x%X\r", r);
-    r = ISpi.ReadWriteByte(0);
-    Uart.Printf("MemType: 0x%X\r", r);
-    r = ISpi.ReadWriteByte(0);
-    Uart.Printf("Capacity: 0x%X\r", r);
-    CsHi();
-}
-
-void FlashW25Q64_t::ReadManufDevID() {
-    uint8_t r;
-    CsLo();
-    ISpi.ReadWriteByte(0x90);   // Cmd
-    ISpi.ReadWriteByte(0);      // }
-    ISpi.ReadWriteByte(0);      // }
-    ISpi.ReadWriteByte(0);      // } Addr == 0
-    r = ISpi.ReadWriteByte(0);
-    Uart.Printf("ManufID: 0x%X\r", r);
-    r = ISpi.ReadWriteByte(0);
-    Uart.Printf("MemType: 0x%X\r", r);
-    CsHi();
 }
 #endif // Inner

@@ -809,7 +809,8 @@ public:
     }
     void Enable () { PSpi->CR1 |=  SPI_CR1_SPE; }
     void Disable() { PSpi->CR1 &= ~SPI_CR1_SPE; }
-    void EnableTxDma() { PSpi->CR2 |= SPI_CR2_TXDMAEN; }
+    void EnableTxDma()  { PSpi->CR2 |=  SPI_CR2_TXDMAEN; }
+    void DisableTxDma() { PSpi->CR2 &= ~SPI_CR2_TXDMAEN; }
     void EnableRxDma()  { PSpi->CR2 |=  SPI_CR2_RXDMAEN; }
     void DisableRxDma() { PSpi->CR2 &= ~SPI_CR2_RXDMAEN; }
     void SetRxOnly()    { PSpi->CR1 |=  SPI_CR1_RXONLY; }
