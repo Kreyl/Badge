@@ -228,6 +228,8 @@ void UsbMsd_t::SCSICmdHandler() {
         case SCSI_CMD_TEST_UNIT_READY:
         case SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL:
         case SCSI_CMD_VERIFY_10:
+        case SCSI_CMD_START_STOP_UNIT:
+        case SCSI_CMD_SYNCHRONIZE_CACHE_10:
             CmdRslt = OK;
             CmdBlock.DataTransferLen = 0;
             break;
@@ -263,9 +265,6 @@ void UsbMsd_t::SCSICmdHandler() {
     }
     if(ShouldSendStatus) {
         TransmitBuf((uint8_t*)&CmdStatus, sizeof(MS_CommandStatusWrapper_t));
-//        chSysLock();
-//        usbStartTransmitI(&USBDrv, EP_DATA_IN_ID, (uint8_t*)&CmdStatus, sizeof(MS_CommandStatusWrapper_t));
-//        chSysUnlock();
     }
 }
 

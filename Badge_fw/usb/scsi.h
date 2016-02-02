@@ -5,11 +5,9 @@
  *      Author: g.kruglov
  */
 
-#ifndef SCSI_H_
-#define SCSI_H_
+#pragma once
 
 #include "inttypes.h"
-
 
 /*  Mass Storage Class SCSI Sense Structure
  *  Type define for a SCSI Sense structure. Structures of this type are filled out by the
@@ -89,6 +87,7 @@ extern const uint8_t Mode_Sense6_data[MODE_SENSE6_DATA_SZ];
 #define SCSI_CMD_WRITE_6                        0x0A
 #define SCSI_CMD_INQUIRY                        0x12
 #define SCSI_CMD_MODE_SENSE_6                   0x1A
+#define SCSI_CMD_START_STOP_UNIT                0x1B
 #define SCSI_CMD_SEND_DIAGNOSTIC                0x1D
 #define SCSI_CMD_PREVENT_ALLOW_MEDIUM_REMOVAL   0x1E
 #define SCSI_READ_FORMAT_CAPACITIES             0x23
@@ -96,6 +95,7 @@ extern const uint8_t Mode_Sense6_data[MODE_SENSE6_DATA_SZ];
 #define SCSI_CMD_READ_10                        0x28
 #define SCSI_CMD_WRITE_10                       0x2A
 #define SCSI_CMD_VERIFY_10                      0x2F
+#define SCSI_CMD_SYNCHRONIZE_CACHE_10           0x35
 #define SCSI_CMD_MODE_SENSE_10                  0x5A
 #endif
 
@@ -161,6 +161,3 @@ extern const uint8_t Mode_Sense6_data[MODE_SENSE6_DATA_SZ];
 /** SCSI Additional Sense Qualifier Code to indicate that an operation is currently in progress. */
 #define SCSI_ASENSEQ_OPERATION_IN_PROGRESS             0x07
 #endif
-
-
-#endif /* SCSI_H_ */
