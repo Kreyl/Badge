@@ -14,7 +14,7 @@
 
 #if ADC_REQUIRED
 
-#ifdef STM32F4XX
+#if defined STM32F4XX || defined STM32F0XX
 // =========================== Constants and Types =============================
 
 // ADC sampling_times
@@ -38,7 +38,9 @@ enum ADCDiv_t {
     adcDiv6 = (uint32_t)(0b10 << 16),
     adcDiv8 = (uint32_t)(0b11 << 16),
 };
+#endif
 
+#if defined STM32F4XX
 class Adc_t {
 private:
     uint16_t IBuf[ADC_SEQ_LEN];
@@ -56,8 +58,22 @@ public:
     void ClockOff() { rccDisableADC1(FALSE); }
     uint32_t GetResult(uint8_t AChannel);
 };
-
 #endif // f4xx
+
+#if defined STM32F0XX
+class Adc_t {
+private:
+    uint16_t IBuf[ADC_SEQ_LEN];
+    void StartConversion() { ADC1->CR |= ADC_CR_ADSTART; }
+    void IDisableNow() { ADC1->CR = 0; }  // Clear all bits
+public:
+    void Init();
+    void StartMeasurement();
+    uint32_t GetResult(uint8_t AChannel);
+    void Stop() { ADC1->CR |= ADC_CR_ADSTP; }
+    void Disable();
+};
+#endif
 
 extern Adc_t Adc;
 #endif // ADC_REQUIRED

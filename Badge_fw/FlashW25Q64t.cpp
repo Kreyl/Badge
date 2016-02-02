@@ -10,6 +10,7 @@
 #include "kl_lib.h"
 
 FlashW25Q64_t Mem;
+static thread_reference_t trp = NULL;
 
 // GPIO
 #define CsHi()      PinSet(MEM_GPIO, MEM_CS)
@@ -18,6 +19,15 @@ FlashW25Q64_t Mem;
 #define WpLo()      PinClear(MEM_GPIO, MEM_WP)
 #define HoldHi()    PinSet(MEM_GPIO, MEM_HOLD)
 #define HoldLo()    PinClear(MEM_GPIO, MEM_HOLD)
+
+// Wrapper for RX IRQ
+extern "C" {
+void MemDmaEndIrq(void *p, uint32_t flags) {
+    chSysLockFromISR();
+    chThdResumeI(&trp, (msg_t)0);
+    chSysUnlockFromISR();
+}
+}
 
 uint8_t FlashW25Q64_t::Init() {
     // GPIO
@@ -33,8 +43,17 @@ uint8_t FlashW25Q64_t::Init() {
     HoldHi();   // Hold disable
     // ==== SPI ====    MSB first, master, ClkLowIdle, FirstEdge, Baudrate=f/2
     ISpi.Setup(MEM_SPI, boMSB, cpolIdleLow, cphaFirstEdge, sbFdiv2);
+    ISpi.EnableRxDma();
+    ISpi.EnableTxDma();
     ISpi.Enable();
     chBSemObjectInit(&ISemaphore, NOT_TAKEN);
+
+    // DMA
+    dmaStreamAllocate     (SPI1_DMA_RX, IRQ_PRIO_LOW, MemDmaEndIrq, NULL);
+    dmaStreamSetPeripheral(SPI1_DMA_RX, &MEM_SPI->DR);
+    dmaStreamAllocate     (SPI1_DMA_TX, IRQ_PRIO_LOW, MemDmaEndIrq, NULL);
+    dmaStreamSetPeripheral(SPI1_DMA_TX, &MEM_SPI->DR);
+
     // Initialization cmds
     if(ReleasePWD() != OK) return FAILURE;
     IsReady = true;
@@ -57,24 +76,37 @@ uint8_t FlashW25Q64_t::ReleasePWD() {
     }
 }
 
-
 #if 1 // ========================= Exported methods ============================
 uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     // Take semaphore
     if(chBSemWait(&ISemaphore) != MSG_OK) return FAILURE;
     // Proceed with reading
     CsLo();
-    ISpi.ReadWriteByte(0x03);   // Send cmd code
-    // Send addr
-    ISpi.ReadWriteByte((Addr >> 16) & 0xFF);
-    ISpi.ReadWriteByte((Addr >> 8) & 0xFF);
-    ISpi.ReadWriteByte(Addr & 0xFF);
-    // Read data
-    for(uint32_t i=0; i < ALen; i++) {
-        *PBuf = ISpi.ReadWriteByte(0);
-        PBuf++;
-    }
+    // ==== Send Cmd & Addr ====
+    Convert::DWordBytes_t dwb;
+    dwb.DWord = Addr;
+    ReverseByteOrder32(dwb.DWord);
+    dwb.b[0] = 0x03;    // Cmd Read
+    ISpi.Enable();
+    ITxData(dwb.b, 4);
+    // ==== Read Data ====
+    ISpi.ClearRxBuf();
+    ISpi.Disable();
+    ISpi.SetRxOnly();   // Will not set if enabled
+    dmaStreamSetMemory0(SPI1_DMA_RX, PBuf);
+    dmaStreamSetTransactionSize(SPI1_DMA_RX, ALen);
+    dmaStreamSetMode   (SPI1_DMA_RX, MEM_RX_DMA_MODE);
+    // Start
+    chSysLock();
+    dmaStreamEnable    (SPI1_DMA_RX);
+    ISpi.Enable();
+    chThdSuspendS(&trp);    // Wait IRQ
+    chSysUnlock();
+    dmaStreamDisable(SPI1_DMA_RX);
     CsHi();
+    ISpi.Disable();
+    ISpi.SetFullDuplex();
+
     chBSemSignal(&ISemaphore);  // Release semaphore
     return OK;
 }
@@ -113,6 +145,18 @@ uint8_t FlashW25Q64_t::EraseAndWriteSector4k(uint32_t Addr, uint8_t *PBuf) {
 #endif // Exported
 
 #if 1 // =========================== Inner methods =============================
+void FlashW25Q64_t::ITxData(uint8_t *Ptr, uint32_t Len) {
+    dmaStreamSetMemory0   (SPI1_DMA_TX, Ptr);
+    dmaStreamSetTransactionSize(SPI1_DMA_TX, Len);
+    dmaStreamSetMode      (SPI1_DMA_TX, MEM_TX_DMA_MODE);
+    chSysLock();
+    dmaStreamEnable       (SPI1_DMA_TX);
+    chThdSuspendS(&trp);
+    chSysUnlock();
+    dmaStreamDisable(SPI1_DMA_TX);
+}
+
+
 uint8_t FlashW25Q64_t::WritePage(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     WriteEnable();
     CsLo();

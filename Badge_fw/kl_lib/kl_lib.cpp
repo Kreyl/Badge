@@ -549,7 +549,6 @@ uint32_t ArrToU32AsBE(uint8_t *PArr) {
     return N;
 }
 void U16ChangeEndianness(uint16_t *p) { *p = __REV16(*p); }
-void U32ChangeEndianness(uint32_t *p) { *p = __REV(*p); }
 uint8_t TryStrToUInt32(char* S, uint32_t *POutput) {
     if(*S == '\0') return EMPTY;
     char *p;

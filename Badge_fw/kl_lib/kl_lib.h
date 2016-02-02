@@ -118,7 +118,7 @@ void U32ToArrAsBE(uint8_t *PArr, uint32_t N);
 uint16_t ArrToU16AsBE(uint8_t *PArr);
 uint32_t ArrToU32AsBE(uint8_t *PArr);
 void U16ChangeEndianness(uint16_t *p);
-void U32ChangeEndianness(uint32_t *p);
+#define ReverseByteOrder32(p)   (p) = __REV(p)
 uint8_t TryStrToUInt32(char* S, uint32_t *POutput);
 uint8_t TryStrToInt32(char* S, int32_t *POutput);
 uint16_t BuildUint16(uint8_t Lo, uint8_t Hi);
@@ -810,9 +810,12 @@ public:
     void Enable () { PSpi->CR1 |=  SPI_CR1_SPE; }
     void Disable() { PSpi->CR1 &= ~SPI_CR1_SPE; }
     void EnableTxDma() { PSpi->CR2 |= SPI_CR2_TXDMAEN; }
-    void EnableRxDma() { PSpi->CR2 |= SPI_CR2_RXDMAEN; }
-    void SetRxOnly()   { PSpi->CR1 |= SPI_CR1_RXONLY; }
+    void EnableRxDma()  { PSpi->CR2 |=  SPI_CR2_RXDMAEN; }
+    void DisableRxDma() { PSpi->CR2 &= ~SPI_CR2_RXDMAEN; }
+    void SetRxOnly()    { PSpi->CR1 |=  SPI_CR1_RXONLY; }
+    void SetFullDuplex(){ PSpi->CR1 &= ~SPI_CR1_RXONLY; }
     void WaitBsyHi2Lo() { while(PSpi->SR & SPI_SR_BSY); }
+    void ClearRxBuf()   { while(PSpi->SR & SPI_SR_RXNE) (void)PSpi->DR; }
     uint8_t ReadWriteByte(uint8_t AByte) {
         *((volatile uint8_t*)&PSpi->DR) = AByte;
         while(!(PSpi->SR & SPI_SR_RXNE));  // Wait for SPI transmission to complete

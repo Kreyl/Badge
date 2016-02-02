@@ -124,6 +124,10 @@ const uint8_t AdcChannels[] = { SNS_CHNL0, SNS_CHNL1 };
 #define UART_DMA_RX     STM32_DMA1_STREAM5
 #define UART_DMA_CHNL   0   // Dummy
 
+// ==== Memory ====
+#define SPI1_DMA_RX     STM32_DMA1_STREAM2
+#define SPI1_DMA_TX     STM32_DMA1_STREAM3
+
 #if ADC_REQUIRED
 /* DMA request mapped on this DMA channel only if the corresponding remapping bit is cleared in the SYSCFG_CFGR1
  * register. For more details, please refer to Section10.1.1: SYSCFG configuration register 1 (SYSCFG_CFGR1) on
