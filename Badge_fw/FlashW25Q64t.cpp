@@ -83,12 +83,7 @@ uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     // Proceed with reading
     CsLo();
     // ==== Send Cmd & Addr ====
-    Convert::DWordBytes_t dwb;
-    dwb.DWord = Addr;
-    ReverseByteOrder32(dwb.DWord);
-    dwb.b[0] = 0x03;    // Cmd Read
-    ISpi.Enable();
-    ITxData(dwb.b, 4);
+    ISendCmdAndAddr(0x03, Addr);    // Cmd Read
     // ==== Read Data ====
     ISpi.ClearRxBuf();
     ISpi.Disable();
@@ -105,7 +100,8 @@ uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     dmaStreamDisable(SPI1_DMA_RX);
     CsHi();
     ISpi.Disable();
-    ISpi.SetFullDuplex();
+    ISpi.SetFullDuplex();   // Remove read-only mode
+    ISpi.Enable();
 
     chBSemSignal(&ISemaphore);  // Release semaphore
     return OK;
@@ -145,12 +141,20 @@ uint8_t FlashW25Q64_t::EraseAndWriteSector4k(uint32_t Addr, uint8_t *PBuf) {
 #endif // Exported
 
 #if 1 // =========================== Inner methods =============================
+void FlashW25Q64_t::ISendCmdAndAddr(uint8_t Cmd, uint32_t Addr) {
+    Convert::DWordBytes_t dwb;
+    dwb.DWord = Addr;
+    ReverseByteOrder32(dwb.DWord);
+    dwb.b[0] = Cmd;
+    ITxData(dwb.b, 4);
+}
+
 void FlashW25Q64_t::ITxData(uint8_t *Ptr, uint32_t Len) {
-    dmaStreamSetMemory0   (SPI1_DMA_TX, Ptr);
+    dmaStreamSetMemory0(SPI1_DMA_TX, Ptr);
     dmaStreamSetTransactionSize(SPI1_DMA_TX, Len);
-    dmaStreamSetMode      (SPI1_DMA_TX, MEM_TX_DMA_MODE);
+    dmaStreamSetMode(SPI1_DMA_TX, MEM_TX_DMA_MODE);
     chSysLock();
-    dmaStreamEnable       (SPI1_DMA_TX);
+    dmaStreamEnable(SPI1_DMA_TX);
     chThdSuspendS(&trp);
     chSysUnlock();
     dmaStreamDisable(SPI1_DMA_TX);
@@ -177,6 +181,9 @@ uint8_t FlashW25Q64_t::WritePage(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
 uint8_t FlashW25Q64_t::EraseSector4k(uint32_t Addr) {
     WriteEnable();
     CsLo();
+//    ISendCmdAndAddr(0x20, Addr);
+//    ISpi.WaitFTLVLZero();
+//    ISpi.WaitBsyHi2Lo();
     ISpi.ReadWriteByte(0x20);   // Send cmd code
     // Send addr
     ISpi.ReadWriteByte((Addr >> 16) & 0xFF);

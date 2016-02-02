@@ -52,6 +52,7 @@ private:
     // Data
     void ITxData(uint8_t *Ptr, uint32_t Len);
     void IRxData(uint8_t *Ptr, uint32_t Len);
+    void ISendCmdAndAddr(uint8_t Cmd, uint32_t Addr);
 public:
     bool IsReady = false;
     uint8_t Init();

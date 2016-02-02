@@ -814,6 +814,7 @@ public:
     void DisableRxDma() { PSpi->CR2 &= ~SPI_CR2_RXDMAEN; }
     void SetRxOnly()    { PSpi->CR1 |=  SPI_CR1_RXONLY; }
     void SetFullDuplex(){ PSpi->CR1 &= ~SPI_CR1_RXONLY; }
+    void WaitFTLVLZero(){ while(PSpi->SR & SPI_SR_FTLVL); }
     void WaitBsyHi2Lo() { while(PSpi->SR & SPI_SR_BSY); }
     void ClearRxBuf()   { while(PSpi->SR & SPI_SR_RXNE) (void)PSpi->DR; }
     uint8_t ReadWriteByte(uint8_t AByte) {
