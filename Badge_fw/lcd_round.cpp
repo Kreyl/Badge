@@ -348,13 +348,13 @@ void Lcd_t::DrawBattery(uint8_t Percent, BatteryState_t State, LcdHideProcess_t 
     if(Hide == lhpHide) {
         Led1.Set(0);
         Led2.Set(0);
-        if(Percent > 0) Clk.SwitchToHsi48();    // Increase MCU freq
     }
+    if(Percent > 0) Clk.SwitchToHsi48();    // Increase MCU freq
 
-    // Draw battery
     const uint8_t *PPic = PicBattery;
     const uint8_t *PLght = PicLightning;
     uint32_t ChargeYTop = PIC_CHARGE_YB - Percent;
+
     // Select charging fill color
     uint8_t ChargeHi, ChargeLo;
     if(Percent > 20 or State == bstCharging) {
@@ -370,14 +370,62 @@ void Lcd_t::DrawBattery(uint8_t Percent, BatteryState_t State, LcdHideProcess_t 
         ChargeLo = CHARGE_LO_CLR.RGBTo565_LoByte();
     }
 
-    SetBounds(0, LCD_W, 0, LCD_H);
-    PrepareToWriteGRAM();
-    for(uint16_t y=0; y<LCD_H; y++) {
-        for(uint16_t x=0; x<LCD_W; x++) {
-            uint8_t bHi, bLo;
-            // Draw either battery or charge value
-            if(x >= PIC_BATTERY_XL and x < PIC_BATTERY_XR and
-               y >= PIC_BATTERY_YT and y < PIC_BATTERY_YB) {
+    // Redraw full screen if need to hide
+    if(Hide == lhpHide) {
+        SetBounds(0, LCD_W, 0, LCD_H);
+        PrepareToWriteGRAM();
+        for(uint16_t y=0; y<LCD_H; y++) {
+            for(uint16_t x=0; x<LCD_W; x++) {
+                uint8_t bHi, bLo;
+                // Draw either battery or charge value
+                if(x >= PIC_BATTERY_XL and x < PIC_BATTERY_XR and
+                   y >= PIC_BATTERY_YT and y < PIC_BATTERY_YB) {
+                    bHi = *PPic++; // }
+                    bLo = *PPic++; // } read pic_battery
+
+                    // Draw lightning if charging
+                    if(State == bstCharging and
+                            x >= PIC_LIGHTNING_XL and x < PIC_LIGHTNING_XR and
+                            y >= PIC_LIGHTNING_YT and y < PIC_LIGHTNING_YB) {
+                        bHi = *PLght++; // }
+                        bLo = *PLght++; // } Read pic_lightning
+                        if(bHi == 0 and bLo == 0) {
+                            if(y >= ChargeYTop) {
+                                bHi = ChargeHi; // }
+                                bLo = ChargeLo; // } Fill transparent backcolor
+                            }
+                        }
+                    } // if inside lightning
+
+                    // Inside battery and (not charging or not inside lightning)
+                    else {
+                        if(x >= PIC_CHARGE_XL and x < PIC_CHARGE_XR and
+                           y >= ChargeYTop    and y < PIC_CHARGE_YB and
+                           bHi == 0 and bLo == 0) { // Check if battery is not touched
+                            bHi = ChargeHi;
+                            bLo = ChargeLo;
+                        }
+                    } // if inside charge
+                } // if inside battery
+                // Clear screen where out of battery
+                else {
+                    bHi = 0;
+                    bLo = 0;
+                }
+                WriteByte(bHi);
+                WriteByte(bLo);
+            } // for x
+        } // for y
+    } // if hide
+
+    // Redraw only battery
+    else {
+        SetBounds(PIC_BATTERY_XL, PIC_BATTERY_W, PIC_BATTERY_YT, PIC_BATTERY_H);
+        PrepareToWriteGRAM();
+        for(uint16_t y=PIC_BATTERY_YT; y<PIC_BATTERY_YB; y++) {
+            for(uint16_t x=PIC_BATTERY_XL; x<PIC_BATTERY_XR; x++) {
+                uint8_t bHi, bLo;
+                // Draw either battery or charge value
                 bHi = *PPic++; // }
                 bLo = *PPic++; // } read pic_battery
 
@@ -404,20 +452,15 @@ void Lcd_t::DrawBattery(uint8_t Percent, BatteryState_t State, LcdHideProcess_t 
                         bLo = ChargeLo;
                     }
                 } // if inside charge
-            } // if inside battery
-            // Clear screen where out of battery
-            else {
-                bHi = 0;
-                bLo = 0;
-            }
-            WriteByte(bHi);
-            WriteByte(bLo);
-        } // for x
-    } // for y
+                WriteByte(bHi);
+                WriteByte(bLo);
+            } // for x
+        } // for y
+    } // if not hide
 
+    if(Percent > 0) Clk.SwitchToHsi();
     // Restore backlight
     if(Hide == lhpHide) {
-        if(Percent > 0) Clk.SwitchToHsi();
         Led1.Set(IBrightness);
         Led2.Set(IBrightness);
     }
