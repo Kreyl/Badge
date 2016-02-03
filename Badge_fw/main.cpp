@@ -120,7 +120,7 @@ void App_t::ITask() {
             Uart.Printf("UsbReady\r");
         }
 #endif
-
+#if 1 // ==== Button ====
         if(EvtMsk & EVTMSK_BUTTONS) {
             BtnEvtInfo_t EInfo;
             while(BtnGetEvt(&EInfo) == OK) {
@@ -147,7 +147,7 @@ void App_t::ITask() {
                 }
             } // while getinfo ok
         } // EVTMSK_BTN_PRESS
-
+#endif
         // ==== ADC ====
         if(EvtMsk & EVTMSK_SAMPLING) OnAdcSamplingTime();
         if(EvtMsk & EVTMSK_ADC_DONE) OnAdcDone();
@@ -171,19 +171,23 @@ void App_t::OnAdcDone() {
 //    Uart.Printf("mV=%u; percent=%u\r", BatVoltage, BatteryPercent);
 
     // If not charging: if voltage is too low - display discharged battery and shutdown
-//    if(!IsCharging()) {
-//        if(BatVoltage < BAT_ZERO_mV) {
-//            Lcd.DrawBattery(BatteryPercent, bstDischarging);
-//            chThdSleepMilliseconds(1800);
-//            Shutdown();
-//        }
-//    } // if not charging
+    if(!IsCharging()) {
+        if(BatVoltage < BAT_ZERO_mV) {
+            Lcd.DrawBattery(BatteryPercent, bstDischarging, lhpHide);
+            chThdSleepMilliseconds(1800);
+            Shutdown();
+        }
+    } // if not charging
     // Redraw battery charge
     if(IsDisplayingBattery) Lcd.DrawBattery(BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpDoNotHide);
 }
 
 void App_t::Shutdown() {
     Uart.PrintfNow("Shutdown\r");
+    Lcd.Shutdown();
+    Mem.PowerDown();
+    Sleep::EnableWakeup1Pin();
+    Sleep::EnterStandby();
 }
 
 #if 1 // ======================= Command processing ============================

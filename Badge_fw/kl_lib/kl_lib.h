@@ -747,11 +747,14 @@ public:
 };
 #endif
 
-#if 1 // ============================== Power ==================================
-#if 0 // ========================== Sleep ======================================
+#if 1 // ============================== Sleep ==================================
 namespace Sleep {
 static inline void EnterStandby() {
+#if defined STM32F0XX
+    SCB->SCR |= SCB_SCR_SLEEPDEEP_Msk;
+#else
     SCB->SCR |= SCB_SCR_SLEEPDEEP;
+#endif
     PWR->CR = PWR_CR_PDDS;
     PWR->CR |= PWR_CR_CWUF;
     __WFI();
@@ -764,7 +767,6 @@ static inline bool WasInStandby() { return (PWR->CSR & PWR_CSR_SBF); }
 static inline void ClearStandbyFlag() { PWR->CR |= PWR_CR_CSBF; }
 
 }; // namespace
-#endif
 #endif
 
 #if 1 // ============================== SPI ====================================
