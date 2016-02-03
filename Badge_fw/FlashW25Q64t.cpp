@@ -45,7 +45,6 @@ uint8_t FlashW25Q64_t::Init() {
     ISpi.Setup(MEM_SPI, boMSB, cpolIdleLow, cphaFirstEdge, sbFdiv2);
     ISpi.EnableRxDma();
     ISpi.Enable();
-    chBSemObjectInit(&ISemaphore, NOT_TAKEN);
 
     // DMA
     dmaStreamAllocate     (SPI1_DMA_RX, IRQ_PRIO_LOW, MemDmaEndIrq, NULL);
@@ -83,8 +82,7 @@ void FlashW25Q64_t::PowerDown() {
 
 #if 1 // ========================= Exported methods ============================
 uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
-    // Take semaphore
-    if(chBSemWait(&ISemaphore) != MSG_OK) return FAILURE;
+    chSysLock();
     // Proceed with reading
     CsLo();
     // ==== Send Cmd & Addr ====
@@ -96,24 +94,20 @@ uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     dmaStreamSetTransactionSize(SPI1_DMA_RX, ALen);
     dmaStreamSetMode   (SPI1_DMA_RX, MEM_RX_DMA_MODE);
     // Start
-    chSysLock();
     dmaStreamEnable    (SPI1_DMA_RX);
     ISpi.Enable();
     chThdSuspendS(&trp);    // Wait IRQ
-    chSysUnlock();
     dmaStreamDisable(SPI1_DMA_RX);
     CsHi();
     ISpi.SetFullDuplex();   // Remove read-only mode
     ISpi.ClearRxBuf();
-
-    chBSemSignal(&ISemaphore);  // Release semaphore
+    chSysUnlock();
     return OK;
 }
 
 // Len = MEM_SECTOR_SZ = 4096
 uint8_t FlashW25Q64_t::EraseAndWriteSector4k(uint32_t Addr, uint8_t *PBuf) {
-    // Take semaphore
-    if(chBSemWait(&ISemaphore) != MSG_OK) return FAILURE;
+    chSysLock();
     // First, erase sector
     uint8_t rslt = EraseSector4k(Addr);
     if(rslt != OK) goto end;
@@ -135,7 +129,7 @@ uint8_t FlashW25Q64_t::EraseAndWriteSector4k(uint32_t Addr, uint8_t *PBuf) {
         Addr += MEM_PAGE_SZ;
     } // for
     end:
-    chBSemSignal(&ISemaphore);  // Release semaphore
+    chSysUnlock();
     return rslt;
 }
 #endif // Exported
