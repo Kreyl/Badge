@@ -367,9 +367,11 @@ void Lcd_t::DrawBattery(uint8_t Percent, BatteryState_t State) {
 
     // Draw battery
     const uint8_t *PPic = PicBattery;
+    const uint8_t *PLght = PicLightning;
     uint32_t ChargeYTop = PIC_CHARGE_YB - Percent;
+    // Select charging fill color
     uint8_t ChargeHi, ChargeLo;
-    if(Percent > 20) {
+    if(Percent > 20 or State == bstCharging) {
         ChargeHi = CHARGE_HI_CLR.RGBTo565_HiByte();
         ChargeLo = CHARGE_HI_CLR.RGBTo565_LoByte();
     }
@@ -386,29 +388,40 @@ void Lcd_t::DrawBattery(uint8_t Percent, BatteryState_t State) {
     PrepareToWriteGRAM();
     for(uint16_t y=0; y<LCD_H; y++) {
         for(uint16_t x=0; x<LCD_W; x++) {
+            uint8_t bHi, bLo;
             // Draw either battery or charge value
-            if(x >= PIC_BATTERY_X0 and x < (PIC_BATTERY_X0 + PIC_BATTERY_W) and
-               y >= PIC_BATTERY_Y0 and y < (PIC_BATTERY_Y0 + PIC_BATTERY_H)) {
-                uint8_t bHi = *PPic++;
-                uint8_t bLo = *PPic++;
+            if(x >= PIC_BATTERY_XL and x < PIC_BATTERY_XR and
+               y >= PIC_BATTERY_YT and y < PIC_BATTERY_YB) {
+                bHi = *PPic++; // }
+                bLo = *PPic++; // } read pic_battery
                 // Draw charge
                 if(x >= PIC_CHARGE_XL and x < PIC_CHARGE_XR and
                    y >= ChargeYTop    and y < PIC_CHARGE_YB and
                    bHi == 0 and bLo == 0) { // Check if battery is not touched
-                    WriteByte(ChargeHi);
-                    WriteByte(ChargeLo);
-                }
-                // Draw battery
-                else {
-                    WriteByte(bHi);
-                    WriteByte(bLo);
-                }
+                    // Draw lightning if charging
+                    if(State == bstCharging) {
+                        bHi = *PLght++; // }
+                        bLo = *PLght++; // } Read pic_lightning
+                        if(x >= PIC_LIGHTNING_XL and x < PIC_LIGHTNING_XR and
+                           y >= PIC_LIGHTNING_YT and y < PIC_LIGHTNING_YB and
+                           bHi == 0 and bLo == 0) {
+                            bHi = ChargeHi; // }
+                            bLo = ChargeLo; // } Fill transparent backcolor
+                        } // if inside lightning
+                    }
+                    else {
+                        bHi = ChargeHi;
+                        bLo = ChargeLo;
+                    }
+                } // if inside charge
             } // if inside battery
             // Clear screen where out of battery
             else {
-                WriteByte(0);
-                WriteByte(0);
+                bHi = 0;
+                bLo = 0;
             }
+            WriteByte(bHi);
+            WriteByte(bLo);
         } // for x
     } // for y
 

@@ -59,7 +59,7 @@ int main(void) {
     Lcd.Init();
     Lcd.SetBrightness(100);
 
-    Lcd.DrawBattery(9, bstDischarging);
+    Lcd.DrawBattery(1, bstCharging);
 
     Mem.Init();
     UsbMsd.Init();
@@ -159,7 +159,12 @@ void App_t::OnAdcDone() {
     uint32_t VRef = Adc.GetResult(ADC_VREFINT_CHNL);
     uint32_t BatVoltage = Adc.Adc2mV(BatAdc, VRef);
     BatteryPercent = mV2Percent(BatVoltage);
-    Uart.Printf("mV=%u; percent=%u\r", BatVoltage, BatteryPercent);
+//    Uart.Printf("mV=%u; percent=%u\r", BatVoltage, BatteryPercent);
+    static uint32_t n=0;
+    Lcd.DrawBattery(n, bstCharging);
+    n += 10;
+    if(n > 100) n=0;
+
     // If not charging: if voltage is too low - display discharged battery and shutdown
 //    if(!IsCharging()) {
 //        if(BatVoltage < BAT_ZERO_mV) {
