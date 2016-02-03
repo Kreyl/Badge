@@ -6,8 +6,10 @@
 #include "uart.h"
 #include "main.h"
 
+#include "pic_battery.h"
+
 //#include "lcdFont8x8.h"
-#include <string.h>
+//#include <string.h>
 
 // Variables
 Lcd_t Lcd;
@@ -129,7 +131,7 @@ void Lcd_t::Init() {
         WriteReg(InitData[i].Reg, InitData[i].Data);
 //        Uart.Printf("%X %X\r", InitData[i].Reg, InitData[i].Data);
     }
-    Cls(clBlack);
+//    Cls(clBlack);
 }
 
 void Lcd_t::Shutdown(void) {
@@ -357,3 +359,60 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     App.SignalEvt(EVTMSK_LCD_DRAW_DONE);
 }
 #endif
+
+void Lcd_t::DrawBattery(uint8_t Percent, BatteryState_t State) {
+    // Switch off backlight to save power
+//    Led1.Set(0);
+//    Led2.Set(0);
+
+    // Draw battery
+    const uint8_t *PPic = PicBattery;
+    uint32_t ChargeYTop = PIC_CHARGE_YB - Percent;
+    uint8_t ChargeHi, ChargeLo;
+    if(Percent > 20) {
+        ChargeHi = CHARGE_HI_CLR.RGBTo565_HiByte();
+        ChargeLo = CHARGE_HI_CLR.RGBTo565_LoByte();
+    }
+    else if(Percent > 10) {
+        ChargeHi = CHARGE_MID_CLR.RGBTo565_HiByte();
+        ChargeLo = CHARGE_MID_CLR.RGBTo565_LoByte();
+    }
+    else {
+        ChargeHi = CHARGE_LO_CLR.RGBTo565_HiByte();
+        ChargeLo = CHARGE_LO_CLR.RGBTo565_LoByte();
+    }
+
+    SetBounds(0, LCD_W, 0, LCD_H);
+    PrepareToWriteGRAM();
+    for(uint16_t y=0; y<LCD_H; y++) {
+        for(uint16_t x=0; x<LCD_W; x++) {
+            // Draw either battery or charge value
+            if(x >= PIC_BATTERY_X0 and x < (PIC_BATTERY_X0 + PIC_BATTERY_W) and
+               y >= PIC_BATTERY_Y0 and y < (PIC_BATTERY_Y0 + PIC_BATTERY_H)) {
+                uint8_t bHi = *PPic++;
+                uint8_t bLo = *PPic++;
+                // Draw charge
+                if(x >= PIC_CHARGE_XL and x < PIC_CHARGE_XR and
+                   y >= ChargeYTop    and y < PIC_CHARGE_YB and
+                   bHi == 0 and bLo == 0) { // Check if battery is not touched
+                    WriteByte(ChargeHi);
+                    WriteByte(ChargeLo);
+                }
+                // Draw battery
+                else {
+                    WriteByte(bHi);
+                    WriteByte(bLo);
+                }
+            } // if inside battery
+            // Clear screen where out of battery
+            else {
+                WriteByte(0);
+                WriteByte(0);
+            }
+        } // for x
+    } // for y
+
+    // Restore backlight
+//    Led1.Set(IBrightness);
+//    Led2.Set(IBrightness);
+}

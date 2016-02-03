@@ -12,6 +12,8 @@
 
 Adc_t Adc;
 
+static const uint8_t AdcChannels[] = ADC_CHANNELS;
+
 #if defined STM32F0XX
 
 // Wrapper for IRQ
@@ -29,7 +31,6 @@ void AdcTxIrq(void *p, uint32_t flags) {
 void Adc_t::Init() {
     rccResetADC1();
     rccEnableADC1(FALSE);           // Enable digital clock
-//    IDisableNow();
     // Configure
     ADC1->CFGR1 = (ADC_CFGR1_CONT | ADC_CFGR1_DMAEN); // Enable Continuous mode and DMA request
     ADC1->CFGR2 = (0b01 << 30);     // Clock: PCLK/2
@@ -95,6 +96,10 @@ uint32_t Adc_t::GetResult(uint8_t AChannel) {
     }
 //    Uart.Printf("\r");
     return Rslt / ADC_SAMPLE_CNT;
+}
+
+uint32_t Adc_t::Adc2mV(uint32_t AdcChValue, uint32_t VrefValue) {
+    return ((3300UL * ADC_VREFINT_CAL / ADC_MAX_VALUE) * AdcChValue) / VrefValue;
 }
 
 #endif // stm32f0

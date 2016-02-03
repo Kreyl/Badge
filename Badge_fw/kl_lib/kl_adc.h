@@ -16,7 +16,6 @@
 
 #if defined STM32F4XX || defined STM32F0XX
 // =========================== Constants and Types =============================
-
 // ADC sampling_times
 enum AdcSampleTime_t {
 	ast1d5Cycles 	= 0,
@@ -29,8 +28,14 @@ enum AdcSampleTime_t {
 	ast239d5Cycles	= 7
 };
 
-// See datasheet
+#define ADC_MAX_VALUE   4095
+
+// See datasheet, search VREFINT_CAL
+#ifdef STM32F072xB
+#define ADC_VREFINT_CAL     (*(volatile uint16_t*)0x1FFFF7BA)
+#else
 #define ADC_VREFINT_CAL     (*(volatile uint16_t*)0x1FFF7A2A)	// for 4xx
+#endif
 
 enum ADCDiv_t {
     adcDiv2 = (uint32_t)(0b00 << 16),
@@ -69,7 +74,10 @@ private:
 public:
     void Init();
     void StartMeasurement();
+    void EnableVRef()  { ADC->CCR |=  ADC_CCR_VREFEN; }
+    void DisableVRef() { ADC->CCR &= ~ADC_CCR_VREFEN; }
     uint32_t GetResult(uint8_t AChannel);
+    uint32_t Adc2mV(uint32_t AdcChValue, uint32_t VrefValue);
     void Stop() { ADC1->CR |= ADC_CR_ADSTP; }
     void Disable();
 };

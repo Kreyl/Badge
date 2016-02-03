@@ -12,15 +12,22 @@
 #include "uart.h"
 #include "evt_mask.h"
 #include "board.h"
+#include "battery_consts.h"
 
-#define APP_NAME            "Badge2"
-#define APP_VERSION         __DATE__ " " __TIME__
+#define APP_NAME                "Badge2"
+#define APP_VERSION             __DATE__ " " __TIME__
+
+#define MEASUREMENT_PERIOD_MS   999
 
 class App_t {
 private:
     thread_t *PThread;
 public:
     uint8_t DrawNextBmp();
+    uint8_t BatteryPercent;
+    void OnAdcSamplingTime();
+    void OnAdcDone();
+    void Shutdown();
     // Eternal methods
     void InitThread() { PThread = chThdGetSelfX(); }
     void SignalEvt(eventmask_t Evt) {

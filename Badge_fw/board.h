@@ -37,7 +37,15 @@
 #define BTN_GPIO        GPIOA
 #define BTN_PIN         0
 
-#if 1 // LCD
+// Battery Management
+#define BAT_MEAS_GPIO   GPIOA
+#define BAT_MEAS_PIN    0
+#define BAT_SW_GPIO     GPIOA
+#define BAT_SW_PIN      15
+#define BAT_CHARGE_GPIO GPIOC
+#define BAT_CHARGE_PIN  14
+
+#if 1 // ==== LCD ====
 #define LCD_GPIO        GPIOB
 #define LCD_RST         8
 #define LCD_CS          9
@@ -82,22 +90,21 @@
 #define UART_RX_REG     UART->RDR
 #endif
 
-#if 0 // ========================= Inner ADC ===================================
+#if 1 // ========================= Inner ADC ===================================
 #define ADC_REQUIRED        TRUE
 // Clock divider: clock is generated from the APB2
-#define ADC_CLK_DIVIDER		adcDiv2	// 32MHz / 2 = 16MHz
+#define ADC_CLK_DIVIDER		adcDiv2
 
-// ADC channels: LED3, LED6
-#define SNS_CHNL0 	        10
-#define SNS_CHNL1 	        14
+// ADC channels
+#define BAT_CHNL 	        1
 
-#define ADC_VREFINT_CHNL    17  // All 4xx devices. Do not change.
-const uint8_t AdcChannels[] = { SNS_CHNL0, SNS_CHNL1 };
+#define ADC_VREFINT_CHNL    17  // All 4xx and F072 devices. Do not change.
+#define ADC_CHANNELS        { BAT_CHNL, ADC_VREFINT_CHNL }
 #define ADC_CHANNEL_CNT     2   // Do not use countof(AdcChannels) as preprocessor does not know what is countof => cannot check
 #define ADC_SAMPLE_TIME     ast55d5Cycles
 #define ADC_SAMPLE_CNT      8   // How many times to measure every channel
 
-#define ADC_MAX_SEQ_LEN     16  // 1...16	// Const, see ref man
+#define ADC_MAX_SEQ_LEN     16  // 1...16; Const, see ref man
 #define ADC_SEQ_LEN         (ADC_SAMPLE_CNT * ADC_CHANNEL_CNT)
 #if (ADC_SEQ_LEN > ADC_MAX_SEQ_LEN) || (ADC_SEQ_LEN == 0)
 #error "Wrong ADC channel count and sample count"

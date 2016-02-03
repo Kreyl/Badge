@@ -15,6 +15,7 @@
 #include "board.h"
 #include "color.h"
 #include "ff.h"
+#include "battery_consts.h"
 
 #define LCD_X_0             10  // Zero pixels are shifted
 #define LCD_W               220 // }
@@ -55,6 +56,7 @@ public:
 //    void DrawImage(const uint8_t x, const uint8_t y, const uint8_t *Img);
 //    void DrawSymbol(const uint8_t x, const uint8_t y, const uint8_t ACode);
     void DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile);
+    void DrawBattery(uint8_t Percent, BatteryState_t State);
 };
 
 extern Lcd_t Lcd;

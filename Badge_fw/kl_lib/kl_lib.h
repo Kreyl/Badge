@@ -77,6 +77,7 @@ typedef void (*ftVoidPVoidLen)(void*p, uint32_t Len);
 #define ABS(a)      ( ((a) < 0)? -(a) : (a) )
 #define TRIM_VALUE(v, Max)  { if((v) > (Max)) (v) = (Max); }
 #define IS_LIKE(v, precise, deviation)  (((precise - deviation) < v) and (v < (precise + deviation)))
+#define BitIsSet(r, b)  ((r) & (b))
 
 template <typename T>
 static T Average(T *p, uint32_t Len) {
@@ -148,6 +149,7 @@ private:
     eventmask_t EvtMsk;
     TmrType_t TmrType;
 public:
+    // Thread, systime Period, EvtMsk, {tvtOneShot, tvtPeriodic}
     void InitAndStart(thread_t *APThread, systime_t APeriod, eventmask_t AEvtMsk, TmrType_t AType) {
         PThread = APThread;
         Period = APeriod;
@@ -398,7 +400,7 @@ static inline void PinClear  (GPIO_TypeDef *PGpioPort, const uint16_t APinNumber
 #define PinToggle(PGpio, APin)  PGpio->ODR  ^= ((uint16_t)(1 << (APin)))
 
 // Check state
-static inline bool PinIsSet(GPIO_TypeDef *PGpioPort, const uint16_t APinNumber) { return (PGpioPort->IDR & (uint32_t)(1<<APinNumber)); }
+#define PinIsSet(PGpio, APin) (PGpio->IDR & (uint32_t)(1<<(APin)))
 // Setup
 static void PinClockEnable(GPIO_TypeDef *PGpioPort) {
 #if defined STM32F2XX || defined STM32F4XX

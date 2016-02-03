@@ -13,11 +13,13 @@
 #include "FlashW25Q64t.h"
 #include "kl_fs_common.h"
 #include "buttons.h"
+#include "kl_adc.h"
+#include "battery_consts.h"
 
 App_t App;
-TmrVirtual_t Tmr1s;
+TmrVirtual_t TmrMeasurement;
 
-uint8_t buf[64];
+#define IsCharging()    (!PinIsSet(BAT_CHARGE_GPIO, BAT_CHARGE_PIN))
 
 // Extension of graphic files to search
 const char Extension[] = "*.bmp";
@@ -38,18 +40,37 @@ int main(void) {
     Uart.Printf("\r%S %S\r", APP_NAME, APP_VERSION);
     Clk.PrintFreqs();
 
+    // Battery: ADC
+    Adc.Init();
+    PinSetupAnalog(BAT_MEAS_GPIO, BAT_MEAS_PIN);
+    PinSetupOut(BAT_SW_GPIO, BAT_SW_PIN, omOpenDrain, pudNone);
+    PinSet(BAT_SW_GPIO, BAT_SW_PIN);
+    PinSetupIn(BAT_CHARGE_GPIO, BAT_CHARGE_PIN, pudPullUp);
+
+    // Measure battery prior to any operation
+    App.OnAdcSamplingTime();
+    chEvtWaitAny(EVTMSK_ADC_DONE);  // Wait AdcDone
+    // Discard first measurement and restart measurement
+    App.OnAdcSamplingTime();
+    chEvtWaitAny(EVTMSK_ADC_DONE);  // Wait AdcDone
+    App.OnAdcDone();
+
+    // Proceed with init
     Lcd.Init();
     Lcd.SetBrightness(100);
+
+    Lcd.DrawBattery(9, bstDischarging);
 
     Mem.Init();
     UsbMsd.Init();
 
     // ==== FAT init ====
-    FRESULT rslt = f_mount(&FatFS, "", 1); // Mount it now
-    if(rslt == FR_OK) App.DrawNextBmp();
-    else Uart.Printf("FS mount error: %u\r", rslt);
+//    FRESULT rslt = f_mount(&FatFS, "", 1); // Mount it now
+//    if(rslt == FR_OK) App.DrawNextBmp();
+//    else Uart.Printf("FS mount error: %u\r", rslt);
 
     PinSensors.Init();
+    TmrMeasurement.InitAndStart(chThdGetSelfX(), MS2ST(MEASUREMENT_PERIOD_MS), EVTMSK_SAMPLING, tvtPeriodic);
     // Main cycle
     App.ITask();
 }
@@ -62,7 +83,7 @@ void App_t::ITask() {
             OnCmd((Shell_t*)&Uart);
             Uart.SignalCmdProcessed();
         }
-#if 1 // ==== USB ====
+#if 0 // ==== USB ====
         if(EvtMsk & EVTMSK_USB_CONNECTED) {
             Uart.Printf("5v is here\r");
             chThdSleepMilliseconds(270);
@@ -101,6 +122,7 @@ void App_t::ITask() {
             Uart.Printf("UsbReady\r");
         }
 #endif
+
         if(EvtMsk & EVTMSK_BUTTONS) {
             BtnEvtInfo_t EInfo;
             while(BtnGetEvt(&EInfo) == OK) {
@@ -112,11 +134,44 @@ void App_t::ITask() {
                     else Uart.Printf("FS mount error: %u\r", rslt);
                 }
                 else if(EInfo.Type == beLongPress) {
-                    Uart.PrintfNow("Shutdown\r");
+                    Shutdown();
                 }
             } // while getinfo ok
         } // EVTMSK_BTN_PRESS
+
+        // ==== ADC ====
+        if(EvtMsk & EVTMSK_SAMPLING) OnAdcSamplingTime();
+        if(EvtMsk & EVTMSK_ADC_DONE) OnAdcDone();
     } // while true
+}
+
+void App_t::OnAdcSamplingTime() {
+    Adc.EnableVRef();
+    PinClear(BAT_SW_GPIO, BAT_SW_PIN);  // Connect R divider to GND
+    chThdSleepMicroseconds(450);
+    Adc.StartMeasurement();
+}
+
+void App_t::OnAdcDone() {
+    PinSet(BAT_SW_GPIO, BAT_SW_PIN);    // Disconnect R divider to GND
+    Adc.DisableVRef();
+    uint32_t BatAdc = 2 * Adc.GetResult(BAT_CHNL); // to count R divider
+    uint32_t VRef = Adc.GetResult(ADC_VREFINT_CHNL);
+    uint32_t BatVoltage = Adc.Adc2mV(BatAdc, VRef);
+    BatteryPercent = mV2Percent(BatVoltage);
+    Uart.Printf("mV=%u; percent=%u\r", BatVoltage, BatteryPercent);
+    // If not charging: if voltage is too low - display discharged battery and shutdown
+//    if(!IsCharging()) {
+//        if(BatVoltage < BAT_ZERO_mV) {
+//            Lcd.DrawBattery(BatteryPercent, bstDischarging);
+//            chThdSleepMilliseconds(1800);
+//            Shutdown();
+//        }
+//    } // if not charging
+}
+
+void App_t::Shutdown() {
+    Uart.PrintfNow("Shutdown\r");
 }
 
 #if 1 // ======================= Command processing ============================
