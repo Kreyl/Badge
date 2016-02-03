@@ -394,22 +394,26 @@ void Lcd_t::DrawBattery(uint8_t Percent, BatteryState_t State) {
                y >= PIC_BATTERY_YT and y < PIC_BATTERY_YB) {
                 bHi = *PPic++; // }
                 bLo = *PPic++; // } read pic_battery
-                // Draw charge
-                if(x >= PIC_CHARGE_XL and x < PIC_CHARGE_XR and
-                   y >= ChargeYTop    and y < PIC_CHARGE_YB and
-                   bHi == 0 and bLo == 0) { // Check if battery is not touched
-                    // Draw lightning if charging
-                    if(State == bstCharging) {
-                        bHi = *PLght++; // }
-                        bLo = *PLght++; // } Read pic_lightning
-                        if(x >= PIC_LIGHTNING_XL and x < PIC_LIGHTNING_XR and
-                           y >= PIC_LIGHTNING_YT and y < PIC_LIGHTNING_YB and
-                           bHi == 0 and bLo == 0) {
+
+                // Draw lightning if charging
+                if(State == bstCharging and
+                        x >= PIC_LIGHTNING_XL and x < PIC_LIGHTNING_XR and
+                        y >= PIC_LIGHTNING_YT and y < PIC_LIGHTNING_YB) {
+                    bHi = *PLght++; // }
+                    bLo = *PLght++; // } Read pic_lightning
+                    if(bHi == 0 and bLo == 0) {
+                        if(y >= ChargeYTop) {
                             bHi = ChargeHi; // }
                             bLo = ChargeLo; // } Fill transparent backcolor
-                        } // if inside lightning
+                        }
                     }
-                    else {
+                } // if inside lightning
+
+                // Inside battery and (not charging or not inside lightning)
+                else {
+                    if(x >= PIC_CHARGE_XL and x < PIC_CHARGE_XR and
+                       y >= ChargeYTop    and y < PIC_CHARGE_YB and
+                       bHi == 0 and bLo == 0) { // Check if battery is not touched
                         bHi = ChargeHi;
                         bLo = ChargeLo;
                     }
