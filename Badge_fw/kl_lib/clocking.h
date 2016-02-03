@@ -177,6 +177,9 @@ private:
     uint8_t EnableHSE();
     uint8_t EnableHSI();
     uint8_t EnablePLL();
+    // To Hsi48 and back again
+    uint32_t ISavedAhbDividers;
+    bool IHsi48WasOn;
 public:
     // Frequency values
     uint32_t AHBFreqHz;     // HCLK: AHB Bus, Core, Memory, DMA; 48 MHz max
@@ -184,6 +187,10 @@ public:
     uint8_t TimerClkMulti = 1;
     // SysClk switching
     uint8_t SwitchTo(ClkSrc_t AClkSrc);
+#if 1 // To Hsi48 and back again
+    void SwitchToHsi48();
+    void SwitchToHsi();
+#endif
     // Clk Enables
     uint8_t EnableHSI48();
     void EnableCRS();

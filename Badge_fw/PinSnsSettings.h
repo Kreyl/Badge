@@ -22,7 +22,7 @@
 #include "evt_mask.h"
 
 #define SIMPLESENSORS_ENABLED   TRUE
-#define SNS_POLL_PERIOD_MS      72
+#define SNS_POLL_PERIOD_MS      27
 
 #if SIMPLESENSORS_ENABLED
 enum PinSnsState_t {pssLo, pssHi, pssRising, pssFalling};

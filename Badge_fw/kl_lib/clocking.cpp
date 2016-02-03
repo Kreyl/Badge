@@ -437,6 +437,30 @@ void Clk_t::DisableCRS() {
     RCC->CFGR3 |= RCC_CFGR3_USBSW;
 }
 
+void Clk_t::SwitchToHsi48() {
+    ISavedAhbDividers = GetAhbApbDividers();
+//    Uart.PrintfNow("cr21=%X\r", RCC->CR2);
+    IHsi48WasOn = IsHSI48On();
+    chSysLock();
+    SetupFlashLatency(48000000);
+    SetupBusDividers(ahbDiv1, apbDiv1);
+    if(!IHsi48WasOn) SwitchTo(csHSI48);  // Switch HSI48 on if was off
+    chSysUnlock();
+}
+
+void Clk_t::SwitchToHsi() {
+    chSysLock();
+    SetupBusDividers(ISavedAhbDividers);
+    if(!IHsi48WasOn) {    // Switch hsi48 off if was off
+        SwitchTo(csHSI);
+        DisableHSI48();
+    }
+    SetupFlashLatency(AHBFreqHz);   // Setup flash according to saved clk value
+//    Clk.UpdateFreqValues();
+    chSysUnlock();
+
+}
+
 /*
  * Early initialization code.
  * This initialization must be performed just after stack setup and before

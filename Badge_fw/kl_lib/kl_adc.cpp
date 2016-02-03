@@ -56,7 +56,7 @@ void Adc_t::Init() {
     dmaStreamAllocate     (ADC_DMA, IRQ_PRIO_LOW, AdcTxIrq, NULL);
     dmaStreamSetPeripheral(ADC_DMA, &ADC1->DR);
     dmaStreamSetMode      (ADC_DMA, ADC_DMA_MODE);
-    Uart.Printf("ADC is set\r");
+//    Uart.Printf("ADC is set\r");
 }
 
 void Adc_t::StartMeasurement() {

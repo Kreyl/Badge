@@ -17,13 +17,14 @@
 #define APP_NAME                "Badge2"
 #define APP_VERSION             __DATE__ " " __TIME__
 
-#define MEASUREMENT_PERIOD_MS   999
+#define MEASUREMENT_PERIOD_MS   2700
 
 class App_t {
 private:
     thread_t *PThread;
 public:
-    uint8_t DrawNextBmp();
+    bool IsDisplayingBattery = false;
+    void DrawNextBmp();
     uint8_t BatteryPercent;
     void OnAdcSamplingTime();
     void OnAdcDone();

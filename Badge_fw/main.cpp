@@ -59,15 +59,13 @@ int main(void) {
     Lcd.Init();
     Lcd.SetBrightness(100);
 
-    Lcd.DrawBattery(1, bstCharging);
-
     Mem.Init();
     UsbMsd.Init();
 
     // ==== FAT init ====
-//    FRESULT rslt = f_mount(&FatFS, "", 1); // Mount it now
-//    if(rslt == FR_OK) App.DrawNextBmp();
-//    else Uart.Printf("FS mount error: %u\r", rslt);
+    FRESULT rslt = f_mount(&FatFS, "", 1); // Mount it now
+    if(rslt == FR_OK) App.DrawNextBmp();
+    else Uart.Printf("FS mount error: %u\r", rslt);
 
     PinSensors.Init();
     TmrMeasurement.InitAndStart(chThdGetSelfX(), MS2ST(MEASUREMENT_PERIOD_MS), EVTMSK_SAMPLING, tvtPeriodic);
@@ -83,7 +81,7 @@ void App_t::ITask() {
             OnCmd((Shell_t*)&Uart);
             Uart.SignalCmdProcessed();
         }
-#if 0 // ==== USB ====
+#if 1 // ==== USB ====
         if(EvtMsk & EVTMSK_USB_CONNECTED) {
             Uart.Printf("5v is here\r");
             chThdSleepMilliseconds(270);
@@ -127,12 +125,23 @@ void App_t::ITask() {
             BtnEvtInfo_t EInfo;
             while(BtnGetEvt(&EInfo) == OK) {
                 if(EInfo.Type == bePress) {
+                    Uart.Printf("Btn\r");
                     FRESULT rslt = FR_OK;
                     // Try to mount FS again if not mounted
                     if(!FATFS_IS_OK()) rslt = f_mount(&FatFS, "", 1); // Mount it now
                     if(rslt == FR_OK) App.DrawNextBmp();
-                    else Uart.Printf("FS mount error: %u\r", rslt);
-                }
+                    else {
+                        Uart.Printf("FS mount error: %u\r", rslt);
+                        if(IsDisplayingBattery) {
+                            IsDisplayingBattery = false;
+                            Lcd.DrawNoImage();
+                        }
+                        else {
+                            Lcd.DrawBattery(BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpHide);
+                            IsDisplayingBattery = true;
+                        }
+                    } // FS error
+                } // if press
                 else if(EInfo.Type == beLongPress) {
                     Shutdown();
                 }
@@ -160,10 +169,6 @@ void App_t::OnAdcDone() {
     uint32_t BatVoltage = Adc.Adc2mV(BatAdc, VRef);
     BatteryPercent = mV2Percent(BatVoltage);
 //    Uart.Printf("mV=%u; percent=%u\r", BatVoltage, BatteryPercent);
-    static uint32_t n=0;
-    Lcd.DrawBattery(n, bstCharging);
-    n += 10;
-    if(n > 100) n=0;
 
     // If not charging: if voltage is too low - display discharged battery and shutdown
 //    if(!IsCharging()) {
@@ -173,6 +178,8 @@ void App_t::OnAdcDone() {
 //            Shutdown();
 //        }
 //    } // if not charging
+    // Redraw battery charge
+    if(IsDisplayingBattery) Lcd.DrawBattery(BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpDoNotHide);
 }
 
 void App_t::Shutdown() {
@@ -193,22 +200,34 @@ void App_t::OnCmd(Shell_t *PShell) {
 }
 #endif
 
-uint8_t App_t::DrawNextBmp() {
+void App_t::DrawNextBmp() {
     uint8_t rslt = f_findnext(&Dir, &FileInfo);
     if(rslt == FR_OK and FileInfo.fname[0]) goto lbl_Found;
     else {  // Not found, or dir closed
-        f_closedir(&Dir);
-        rslt = f_findfirst(&Dir, &FileInfo, "", Extension);
-        if(rslt == FR_OK and FileInfo.fname[0]) goto lbl_Found;
+        // Display battery if not displayed yet
+        if(IsDisplayingBattery) {
+            IsDisplayingBattery = false;
+            // Reread dir
+            f_closedir(&Dir);
+            rslt = f_findfirst(&Dir, &FileInfo, "", Extension);
+            if(rslt == FR_OK and FileInfo.fname[0]) goto lbl_Found;
+            else {
+                Lcd.DrawNoImage();
+                Uart.Printf("Not found: %u\r", rslt);
+                f_closedir(&Dir);
+                FatFS.fs_type = 0;  // Unmount FS
+                return;
+            }
+        }
         else {
-            Uart.Printf("Not found: %u\r", rslt);
-            return FAILURE;
+            Lcd.DrawBattery(BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpHide);
+            IsDisplayingBattery = true;
+            return;
         }
     } // findnext not succeded
     lbl_Found:
     Uart.PrintfNow("%S\r", FileInfo.fname);
     Lcd.DrawBmpFile(0,0, FileInfo.fname, &File);
-    return OK;
 }
 
 // 5v Sns
@@ -216,8 +235,4 @@ void Process5VSns(PinSnsState_t *PState, uint32_t Len) {
     if(PState[0] == pssRising) App.SignalEvt(EVTMSK_USB_CONNECTED);
     else if(PState[0] == pssFalling) App.SignalEvt(EVTMSK_USB_DISCONNECTED);
 }
-// Button
-//void ProcessBtnPress(PinSnsState_t *PState, uint32_t Len) {
-//    if(PState[0] == pssRising) App.SignalEvt(EVTMSK_BTN_PRESS);
-////    else if(PState[0] == pssFalling) App.SignalEvt(EVTMSK_USB_DISCONNECTED);
-//}
+

@@ -5,8 +5,8 @@
 #include "core_cmInstr.h"
 #include "uart.h"
 #include "main.h"
+#include "pics.h"
 
-#include "pic_battery.h"
 
 //#include "lcdFont8x8.h"
 //#include <string.h>
@@ -267,7 +267,7 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     FRESULT rslt = f_open(PFile, Filename, FA_READ);
     if(rslt != FR_OK) {
         if (rslt == FR_NO_FILE) Uart.Printf("%S: not found\r", Filename);
-        else Uart.Printf("OpenFile error: %u", rslt);
+        else Uart.Printf("OpenFile error: %u\r", rslt);
         return;
     }
 
@@ -275,16 +275,7 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     Led1.Set(0);
     Led2.Set(0);
 
-    // ==== Increase MCU freq ====
-    uint32_t Dividers = Clk.GetAhbApbDividers();
-//    Uart.PrintfNow("cr21=%X\r", RCC->CR2);
-    bool Hsi48WasOn = Clk.IsHSI48On();
-    chSysLock();
-    Clk.SetupFlashLatency(48000000);
-    Clk.SetupBusDividers(ahbDiv1, apbDiv1);
-    if(!Hsi48WasOn) Clk.SwitchTo(csHSI48);  // Switch HSI48 on if was off
-    chSysUnlock();
-//    Uart.PrintfNow("cr22=%X\r", RCC->CR2);
+    Clk.SwitchToHsi48();    // Increase MCU freq
 
     // Check if zero file
     if(PFile->fsize == 0) {
@@ -338,16 +329,8 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     end:
     f_close(PFile);
 
-    // ==== Switch back low freq ====
-    chSysLock();
-    Clk.SetupBusDividers(Dividers);
-    if(!Hsi48WasOn) {    // Switch hsi48 off if was off
-        Clk.SwitchTo(csHSI);
-        Clk.DisableHSI48();
-    }
-    Clk.SetupFlashLatency(Clk.AHBFreqHz);   // Setup flash according to saved clk value
-//    Clk.UpdateFreqValues();
-    chSysUnlock();
+    // Switch back low freq
+    Clk.SwitchToHsi();
 //    Clk.PrintFreqs();
 //    Uart.Printf("cr23=%X\r", RCC->CR2);
 
@@ -360,10 +343,13 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
 }
 #endif
 
-void Lcd_t::DrawBattery(uint8_t Percent, BatteryState_t State) {
-    // Switch off backlight to save power
-//    Led1.Set(0);
-//    Led2.Set(0);
+void Lcd_t::DrawBattery(uint8_t Percent, BatteryState_t State, LcdHideProcess_t Hide) {
+    // Switch off backlight to save power if needed
+    if(Hide == lhpHide) {
+        Led1.Set(0);
+        Led2.Set(0);
+        if(Percent > 0) Clk.SwitchToHsi48();    // Increase MCU freq
+    }
 
     // Draw battery
     const uint8_t *PPic = PicBattery;
@@ -430,6 +416,38 @@ void Lcd_t::DrawBattery(uint8_t Percent, BatteryState_t State) {
     } // for y
 
     // Restore backlight
-//    Led1.Set(IBrightness);
-//    Led2.Set(IBrightness);
+    if(Hide == lhpHide) {
+        if(Percent > 0) Clk.SwitchToHsi();
+        Led1.Set(IBrightness);
+        Led2.Set(IBrightness);
+    }
+}
+
+void Lcd_t::DrawNoImage() {
+    // Switch off backlight to save power if needed
+    Led1.Set(0);
+    Led2.Set(0);
+    Clk.SwitchToHsi48();    // Increase MCU freq
+
+    const uint8_t *PPic = PicNoImage;
+    SetBounds(0, LCD_W, 0, LCD_H);
+    PrepareToWriteGRAM();
+    for(uint16_t y=0; y<LCD_H; y++) {
+        for(uint16_t x=0; x<LCD_W; x++) {
+            if(x >= PIC_NOIMAGE_XL and x < PIC_NOIMAGE_XR and
+               y >= PIC_NOIMAGE_YT and y < PIC_NOIMAGE_YB) {
+                WriteByte(*PPic++);
+                WriteByte(*PPic++);
+            }
+            else {
+                WriteByte(0);
+                WriteByte(0);
+            }
+        } // for x
+    } // for y
+
+    // Restore backlight
+    Clk.SwitchToHsi();
+    Led1.Set(IBrightness);
+    Led2.Set(IBrightness);
 }

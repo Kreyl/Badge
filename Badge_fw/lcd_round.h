@@ -24,6 +24,8 @@
 
 #define BUF_SZ              128
 
+enum LcdHideProcess_t {lhpHide, lhpDoNotHide};
+
 class Lcd_t {
 private:
     PinOutputPWM_t<LCD_TOP_BRIGHTNESS, invInverted, omPushPull> Led1 {LCD_BCKLT_GPIO, LCD_BCKLT_PIN1, LCD_BCKLT_TMR, LCD_BCKLT_CHNL1};
@@ -56,7 +58,8 @@ public:
 //    void DrawImage(const uint8_t x, const uint8_t y, const uint8_t *Img);
 //    void DrawSymbol(const uint8_t x, const uint8_t y, const uint8_t ACode);
     void DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile);
-    void DrawBattery(uint8_t Percent, BatteryState_t State);
+    void DrawBattery(uint8_t Percent, BatteryState_t State, LcdHideProcess_t Hide);
+    void DrawNoImage();
 };
 
 extern Lcd_t Lcd;
