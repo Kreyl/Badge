@@ -25,7 +25,7 @@
 
 class Lcd_t {
 private:
-    PinOutputPWM_t<100, invInverted, omPushPull> Led1 {GPIOB, 14, TIM15, 1};
+    PinOutputPWM_t<LCD_TOP_BRIGHTNESS, invInverted, omPushPull> Led1 {LCD_BCKLT_GPIO, LCD_BCKLT_PIN1, LCD_BCKLT_TMR, LCD_BCKLT_CHNL1};
     PinOutputPWM_t<LCD_TOP_BRIGHTNESS, invInverted, omPushPull> Led2 {LCD_BCKLT_GPIO, LCD_BCKLT_PIN2, LCD_BCKLT_TMR, LCD_BCKLT_CHNL2};
 //    uint16_t IX, IY;
 //    Color_t IForeClr, IBckClr;

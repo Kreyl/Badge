@@ -134,9 +134,10 @@ void Lcd_t::Init() {
 }
 
 void Lcd_t::Shutdown(void) {
-//    XRES_Lo();
-//    XCS_Lo();
-//    BckLt.Off();
+    Led1.Deinit();
+    Led2.Deinit();
+    WriteReg(0x07, 0);  // BaseImage disabled
+    WriteReg(0x12, 0);  // PON=0, PSON=0
 }
 
 void Lcd_t::SetBrightness(uint16_t ABrightness) {

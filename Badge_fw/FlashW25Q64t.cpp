@@ -50,14 +50,13 @@ uint8_t FlashW25Q64_t::Init() {
     // DMA
     dmaStreamAllocate     (SPI1_DMA_RX, IRQ_PRIO_LOW, MemDmaEndIrq, NULL);
     dmaStreamSetPeripheral(SPI1_DMA_RX, &MEM_SPI->DR);
-
-    // Initialization cmds
-    if(ReleasePWD() != OK) return FAILURE;
-    IsReady = true;
-    return OK;
+    // Release PowerDown
+    return PowerUp();
 }
 
-uint8_t FlashW25Q64_t::ReleasePWD() {
+// Actually, this is ReleasePWD command
+uint8_t FlashW25Q64_t::PowerUp() {
+    ISpi.ClearRxBuf();
     CsLo();
     ISpi.ReadWriteByte(0xAB);   // Send cmd code
     ISpi.ReadWriteByte(0x00);   // }
@@ -66,11 +65,20 @@ uint8_t FlashW25Q64_t::ReleasePWD() {
     uint8_t id = ISpi.ReadWriteByte(0x00);
     CsHi();
     chThdSleepMilliseconds(1);  // Let it wake
-    if(id == 0x16) return OK;
+    if(id == 0x16) {
+        IsReady = true;
+        return OK;
+    }
     else {
         Uart.Printf("Flash ID Error(0x%X)\r", id);
         return FAILURE;
     }
+}
+
+void FlashW25Q64_t::PowerDown() {
+    CsLo();
+    ISpi.ReadWriteByte(0xB9);
+    CsHi();
 }
 
 #if 1 // ========================= Exported methods ============================

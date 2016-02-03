@@ -68,6 +68,24 @@ void Timer_t::Init() {
 #endif
 }
 
+void Timer_t::Deinit() {
+    TMR_DISABLE(ITmr);
+#if defined STM32F0XX
+    if     (ITmr == TIM1)  { rccDisableTIM1(); }
+    else if(ITmr == TIM2)  { rccDisableTIM2(); }
+    else if(ITmr == TIM3)  { rccDisableTIM3(); }
+#ifdef TIM6
+    else if(ITmr == TIM6)  { rccDisableTIM6(); }
+#endif
+    else if(ITmr == TIM14) { rccDisableTIM14(); }
+#ifdef TIM15
+    else if(ITmr == TIM15) { rccDisableTIM15(); }
+#endif
+    else if(ITmr == TIM16) { rccDisableTIM16(); }
+    else if(ITmr == TIM17) { rccDisableTIM17(); }
+#endif
+}
+
 void Timer_t::InitPwm(GPIO_TypeDef *GPIO, uint16_t N, uint8_t Chnl, uint32_t ATopValue, Inverted_t Inverted, PinOutMode_t OutputType) {
     // GPIO
 #if defined STM32L1XX_MD

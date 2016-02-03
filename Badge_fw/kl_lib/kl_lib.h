@@ -626,6 +626,7 @@ public:
         InitPwm(PGpio, Pin, TmrChnl, TopValue, Inverted, OutputType);
         Enable();
     }
+    void Deinit() { Timer_t::Deinit(); PinSetupAnalog(PGpio, Pin); }
     void SetFrequencyHz(uint32_t FreqHz) { Timer_t::SetUpdateFrequency(FreqHz); }
     PinOutputPWM_t(GPIO_TypeDef *APGpio, uint16_t APin, TIM_TypeDef *APTimer, uint32_t ATmrChnl) :
         PGpio(APGpio), Pin(APin), TmrChnl(ATmrChnl) { ITmr = APTimer; }
