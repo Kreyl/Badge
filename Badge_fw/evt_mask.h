@@ -11,7 +11,7 @@
 // Event masks
 #define EVTMSK_UART_NEW_CMD     EVENT_MASK(1)
 
-#define EVTMSK_BTN_PRESS        EVENT_MASK(2)
+#define EVTMSK_BUTTONS          EVENT_MASK(2)
 
 #define EVTMSK_LCD_DRAW_DONE    EVENT_MASK(3)
 

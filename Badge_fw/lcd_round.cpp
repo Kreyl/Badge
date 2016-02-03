@@ -96,13 +96,12 @@ void Lcd_t::Init() {
     PinSetupOut(LCD_GPIO, LCD_RS,  omPushPull, pudNone, psMedium);
     PinSetupOut(LCD_GPIO, LCD_WR,  omPushPull, pudNone, psMedium);
     PinSetupOut(LCD_GPIO, LCD_RD,  omPushPull, pudNone, psMedium);
-    PinSetupOut(LCD_GPIO, LCD_IMO, omPushPull, pudNone, psMedium);
+    PinSetupAnalog(LCD_GPIO, LCD_IMO);
     // Configure data bus as outputs
     for(uint8_t i=0; i<8; i++) PinSetupOut(LCD_GPIO, i, omPushPull, pudNone, psHigh);
 
     // ======= Init LCD =======
     // Initial signals
-    PinSet(LCD_GPIO, LCD_IMO);  // Select 8-bit parallel bus
     RstHi();
     CsHi();
     RdHi();
@@ -276,14 +275,14 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
 
     // ==== Increase MCU freq ====
     uint32_t Dividers = Clk.GetAhbApbDividers();
-    Uart.PrintfNow("cr21=%X\r", RCC->CR2);
+//    Uart.PrintfNow("cr21=%X\r", RCC->CR2);
     bool Hsi48WasOn = Clk.IsHSI48On();
     chSysLock();
     Clk.SetupFlashLatency(48000000);
     Clk.SetupBusDividers(ahbDiv1, apbDiv1);
     if(!Hsi48WasOn) Clk.SwitchTo(csHSI48);  // Switch HSI48 on if was off
     chSysUnlock();
-    Uart.PrintfNow("cr22=%X\r", RCC->CR2);
+//    Uart.PrintfNow("cr22=%X\r", RCC->CR2);
 
     // Check if zero file
     if(PFile->fsize == 0) {
@@ -347,8 +346,8 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     Clk.SetupFlashLatency(Clk.AHBFreqHz);   // Setup flash according to saved clk value
 //    Clk.UpdateFreqValues();
     chSysUnlock();
-    Clk.PrintFreqs();
-    Uart.Printf("cr23=%X\r", RCC->CR2);
+//    Clk.PrintFreqs();
+//    Uart.Printf("cr23=%X\r", RCC->CR2);
 
     // Restore backlight
     Led1.Set(IBrightness);

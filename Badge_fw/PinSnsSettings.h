@@ -41,12 +41,12 @@ struct PinSns_t {
 
 // ================================= Settings ==================================
 // Button handler
-extern void ProcessBtnPress(PinSnsState_t *PState, uint32_t Len);
+extern void ProcessButtons(PinSnsState_t *PState, uint32_t Len);
 extern void Process5VSns(PinSnsState_t *PState, uint32_t Len);
 
 const PinSns_t PinSns[] = {
         // Button
-        {BTN_GPIO, BTN_PIN, pudPullDown, ProcessBtnPress},
+        {BTN_GPIO, BTN_PIN, pudPullDown, ProcessButtons},
         // 5V sns
         {SNS_5V_GPIO, SNS_5V_PIN, pudPullDown, Process5VSns},
 };

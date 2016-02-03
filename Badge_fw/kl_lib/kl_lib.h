@@ -199,8 +199,8 @@ static inline void chVTStartIfNotStarted(VirtualTimer *vtp, systime_t time, even
 #if 0 // =========================== Time ======================================
 static inline bool TimeElapsed(systime_t *PSince, uint32_t Delay_ms) {
     chSysLock();
-    bool Rslt = (systime_t)(chTimeNow() - *PSince) > MS2ST(Delay_ms);
-    if(Rslt) *PSince = chTimeNow();
+    bool Rslt = (chVTGetSystemTimeX() - *PSince) > MS2ST(Delay_ms);
+    if(Rslt) *PSince = chVTGetSystemTimeX();
     chSysUnlock();
     return Rslt;
 }

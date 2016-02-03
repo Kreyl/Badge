@@ -12,6 +12,7 @@
 #include "SimpleSensors.h"
 #include "FlashW25Q64t.h"
 #include "kl_fs_common.h"
+#include "buttons.h"
 
 App_t App;
 TmrVirtual_t Tmr1s;
@@ -100,14 +101,20 @@ void App_t::ITask() {
             Uart.Printf("UsbReady\r");
         }
 #endif
-        if(EvtMsk & EVTMSK_BTN_PRESS) {
-            FRESULT rslt = FR_OK;
-            // Try to mount FS again if not mounted
-            if(!FATFS_IS_OK()) {
-                rslt = f_mount(&FatFS, "", 1); // Mount it now
-            }
-            if(rslt == FR_OK) App.DrawNextBmp();
-            else Uart.Printf("FS mount error: %u\r", rslt);
+        if(EvtMsk & EVTMSK_BUTTONS) {
+            BtnEvtInfo_t EInfo;
+            while(BtnGetEvt(&EInfo) == OK) {
+                if(EInfo.Type == bePress) {
+                    FRESULT rslt = FR_OK;
+                    // Try to mount FS again if not mounted
+                    if(!FATFS_IS_OK()) rslt = f_mount(&FatFS, "", 1); // Mount it now
+                    if(rslt == FR_OK) App.DrawNextBmp();
+                    else Uart.Printf("FS mount error: %u\r", rslt);
+                }
+                else if(EInfo.Type == beLongPress) {
+                    Uart.PrintfNow("Shutdown\r");
+                }
+            } // while getinfo ok
         } // EVTMSK_BTN_PRESS
     } // while true
 }
@@ -150,7 +157,7 @@ void Process5VSns(PinSnsState_t *PState, uint32_t Len) {
     else if(PState[0] == pssFalling) App.SignalEvt(EVTMSK_USB_DISCONNECTED);
 }
 // Button
-void ProcessBtnPress(PinSnsState_t *PState, uint32_t Len) {
-    if(PState[0] == pssRising) App.SignalEvt(EVTMSK_BTN_PRESS);
-//    else if(PState[0] == pssFalling) App.SignalEvt(EVTMSK_USB_DISCONNECTED);
-}
+//void ProcessBtnPress(PinSnsState_t *PState, uint32_t Len) {
+//    if(PState[0] == pssRising) App.SignalEvt(EVTMSK_BTN_PRESS);
+////    else if(PState[0] == pssFalling) App.SignalEvt(EVTMSK_USB_DISCONNECTED);
+//}
