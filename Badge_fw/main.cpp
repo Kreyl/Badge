@@ -125,7 +125,7 @@ void App_t::ITask() {
             BtnEvtInfo_t EInfo;
             while(BtnGetEvt(&EInfo) == OK) {
                 if(EInfo.Type == bePress) {
-                    Uart.Printf("Btn\r");
+//                    Uart.Printf("Btn\r");
                     FRESULT rslt = FR_OK;
                     // Try to mount FS again if not mounted
                     if(!FATFS_IS_OK()) rslt = f_mount(&FatFS, "", 1); // Mount it now
@@ -142,9 +142,6 @@ void App_t::ITask() {
                         }
                     } // FS error
                 } // if press
-                else if(EInfo.Type == beLongPress) {
-                    Shutdown();
-                }
             } // while getinfo ok
         } // EVTMSK_BTN_PRESS
 #endif
@@ -168,15 +165,15 @@ void App_t::OnAdcDone() {
     uint32_t VRef = Adc.GetResult(ADC_VREFINT_CHNL);
     uint32_t BatVoltage = Adc.Adc2mV(BatAdc, VRef);
     BatteryPercent = mV2Percent(BatVoltage);
-//    Uart.Printf("mV=%u; percent=%u\r", BatVoltage, BatteryPercent);
+    Uart.Printf("mV=%u; percent=%u\r", BatVoltage, BatteryPercent);
 
     // If not charging: if voltage is too low - display discharged battery and shutdown
     if(!IsCharging()) {
-        if(BatVoltage < BAT_ZERO_mV) {
-            Lcd.DrawBattery(BatteryPercent, bstDischarging, lhpHide);
-            chThdSleepMilliseconds(1800);
-            Shutdown();
-        }
+//        if(BatVoltage < BAT_ZERO_mV) {
+//            Lcd.DrawBattery(BatteryPercent, bstDischarging, lhpHide);
+//            chThdSleepMilliseconds(1800);
+//            Shutdown();
+//        }
     } // if not charging
     // Redraw battery charge
     if(IsDisplayingBattery) Lcd.DrawBattery(BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpDoNotHide);
