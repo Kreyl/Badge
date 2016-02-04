@@ -56,6 +56,7 @@ uint8_t FlashW25Q64_t::Init() {
 // Actually, this is ReleasePWD command
 uint8_t FlashW25Q64_t::PowerUp() {
     ISpi.ClearRxBuf();
+    chSysLock();
     CsLo();
     ISpi.ReadWriteByte(0xAB);   // Send cmd code
     ISpi.ReadWriteByte(0x00);   // }
@@ -63,6 +64,7 @@ uint8_t FlashW25Q64_t::PowerUp() {
     ISpi.ReadWriteByte(0x00);   // } Three dummy bytes
     uint8_t id = ISpi.ReadWriteByte(0x00);
     CsHi();
+    chSysUnlock();
     chThdSleepMilliseconds(1);  // Let it wake
     if(id == 0x16) {
         IsReady = true;
