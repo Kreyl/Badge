@@ -445,6 +445,7 @@ void Clk_t::SwitchToHsi48() {
     SetupFlashLatency(48000000);
     SetupBusDividers(ahbDiv1, apbDiv1);
     if(!IHsi48WasOn) SwitchTo(csHSI48);  // Switch HSI48 on if was off
+    UpdateFreqValues();
     chSysUnlock();
 }
 
@@ -455,10 +456,9 @@ void Clk_t::SwitchToHsi() {
         SwitchTo(csHSI);
         DisableHSI48();
     }
-    SetupFlashLatency(AHBFreqHz);   // Setup flash according to saved clk value
-//    Clk.UpdateFreqValues();
+    UpdateFreqValues();
+    SetupFlashLatency(AHBFreqHz);
     chSysUnlock();
-
 }
 
 /*

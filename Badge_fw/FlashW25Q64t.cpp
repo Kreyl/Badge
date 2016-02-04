@@ -75,9 +75,12 @@ uint8_t FlashW25Q64_t::PowerUp() {
 }
 
 void FlashW25Q64_t::PowerDown() {
+    chSysLock();
     CsLo();
     ISpi.ReadWriteByte(0xB9);
     CsHi();
+    chSysUnlock();
+    chThdSleepMicroseconds(450);
 }
 
 #if 1 // ========================= Exported methods ============================

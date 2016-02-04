@@ -101,6 +101,7 @@ void ProcessButtons(PinSnsState_t *BtnState, uint32_t Len) {
                 ) {
 #if BTN_LONGPRESS // Check if long press
             if(!IsLongPress[i]) {
+//                Uart.Printf("Elapsed %u\r", chVTTimeElapsedSinceX(LongPressTimer));
                 if(chVTTimeElapsedSinceX(LongPressTimer) >= MS2ST(BTN_LONGPRESS_DELAY_MS)) {
                     IsLongPress[i] = true;
                     AddEvtToQueue(beLongPress, i);

@@ -65,7 +65,7 @@ static uint8_t mV2PercentLiIon(uint16_t mV) {
 #define BAT_END_mV          2800    // Do not operate if Ubat <= BAT_END_V
 #define BAT_PERCENT_STEP    11
 
-#define mV2Percent(V)   (((V) > BAT_ZERO_mV)? (100 - (BAT_TOP_mV - (V)) / BAT_PERCENT_STEP) : 0)
+#define mV2Percent(V)   (((V) > BAT_TOP_mV)? 100 : (((V) > BAT_ZERO_mV)? (100 - (BAT_TOP_mV - (V)) / BAT_PERCENT_STEP) : 0))
 #endif
 
 #if 0 // ============================ 3V Li ====================================

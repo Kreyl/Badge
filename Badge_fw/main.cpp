@@ -24,10 +24,12 @@ TmrVirtual_t TmrMeasurement;
 // Extension of graphic files to search
 const char Extension[] = "*.bmp";
 
+#define AHB_DIVIDER ahbDiv8
+
 int main(void) {
     // ==== Setup clock frequency ====
 //    Clk.EnablePrefetch();
-    Clk.SetupBusDividers(ahbDiv2, apbDiv1);
+    Clk.SetupBusDividers(AHB_DIVIDER, apbDiv1);
     Clk.UpdateFreqValues();
 
     // Init OS
@@ -47,6 +49,9 @@ int main(void) {
     PinSet(BAT_SW_GPIO, BAT_SW_PIN);
     PinSetupIn(BAT_CHARGE_GPIO, BAT_CHARGE_PIN, pudPullUp);
 
+    Lcd.Init();
+    Lcd.SetBrightness(20);
+
     // Measure battery prior to any operation
     App.OnAdcSamplingTime();
     chEvtWaitAny(EVTMSK_ADC_DONE);  // Wait AdcDone
@@ -56,7 +61,6 @@ int main(void) {
     App.OnAdcDone();
 
     // Proceed with init
-    Lcd.Init();
     Lcd.SetBrightness(100);
 
     Mem.Init();
@@ -87,6 +91,7 @@ void App_t::ITask() {
             chThdSleepMilliseconds(270);
             // Enable HSI48
             chSysLock();
+            Clk.SetupBusDividers(ahbDiv2, apbDiv1);
             uint8_t r = Clk.SwitchTo(csHSI48);
             Clk.UpdateFreqValues();
             chSysUnlock();
@@ -104,6 +109,7 @@ void App_t::ITask() {
             // Disable Usb & HSI48
             UsbMsd.Disconnect();
             chSysLock();
+            Clk.SetupBusDividers(AHB_DIVIDER, apbDiv1);
             uint8_t r = Clk.SwitchTo(csHSI);
             Clk.UpdateFreqValues();
             chSysUnlock();
@@ -142,6 +148,7 @@ void App_t::ITask() {
                         }
                     } // FS error
                 } // if press
+//                else if(EInfo.Type == beLongPress) Shutdown();
             } // while getinfo ok
         } // EVTMSK_BTN_PRESS
 #endif
@@ -165,15 +172,15 @@ void App_t::OnAdcDone() {
     uint32_t VRef = Adc.GetResult(ADC_VREFINT_CHNL);
     uint32_t BatVoltage = Adc.Adc2mV(BatAdc, VRef);
     BatteryPercent = mV2Percent(BatVoltage);
-    Uart.Printf("mV=%u; percent=%u\r", BatVoltage, BatteryPercent);
+//    Uart.Printf("mV=%u; percent=%u\r", BatVoltage, BatteryPercent);
 
     // If not charging: if voltage is too low - display discharged battery and shutdown
     if(!IsCharging()) {
-//        if(BatVoltage < BAT_ZERO_mV) {
-//            Lcd.DrawBattery(BatteryPercent, bstDischarging, lhpHide);
-//            chThdSleepMilliseconds(1800);
-//            Shutdown();
-//        }
+        if(BatVoltage < BAT_ZERO_mV) {
+            Lcd.DrawBattery(BatteryPercent, bstDischarging, lhpHide);
+            chThdSleepMilliseconds(1800);
+            Shutdown();
+        }
     } // if not charging
     // Redraw battery charge
     if(IsDisplayingBattery) Lcd.DrawBattery(BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpDoNotHide);
@@ -236,4 +243,3 @@ void Process5VSns(PinSnsState_t *PState, uint32_t Len) {
     if(PState[0] == pssRising) App.SignalEvt(EVTMSK_USB_CONNECTED);
     else if(PState[0] == pssFalling) App.SignalEvt(EVTMSK_USB_DISCONNECTED);
 }
-
