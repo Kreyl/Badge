@@ -39,7 +39,7 @@ uint8_t FlashW25Q64_t::Init() {
     PinSetupAlterFunc(MEM_GPIO, MEM_DI, omPushPull, pudNone,   MEM_SPI_AF);
     // Initial values
     CsHi();     // Disable IC
-    WpHi();     // Write protect disable
+    WpLo();     // Write protect enable
     HoldHi();   // Hold disable
     // ==== SPI ====    MSB first, master, ClkLowIdle, FirstEdge, Baudrate=f/2
     ISpi.Setup(MEM_SPI, boMSB, cpolIdleLow, cphaFirstEdge, sbFdiv2);
@@ -88,7 +88,6 @@ void FlashW25Q64_t::PowerDown() {
 #if 1 // ========================= Exported methods ============================
 uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     chSysLock();
-    // Proceed with reading
     CsLo();
     // ==== Send Cmd & Addr ====
     ISendCmdAndAddr(0x03, Addr);    // Cmd Read
@@ -113,6 +112,7 @@ uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
 // Len = MEM_SECTOR_SZ = 4096
 uint8_t FlashW25Q64_t::EraseAndWriteSector4k(uint32_t Addr, uint8_t *PBuf) {
     chSysLock();
+    WpHi();     // Write protect disable
     // First, erase sector
     uint8_t rslt = EraseSector4k(Addr);
     if(rslt != OK) goto end;
@@ -134,9 +134,28 @@ uint8_t FlashW25Q64_t::EraseAndWriteSector4k(uint32_t Addr, uint8_t *PBuf) {
         Addr += MEM_PAGE_SZ;
     } // for
     end:
+    WpLo();     // Write protect enable
     chSysUnlock();
     return rslt;
 }
+
+void FlashW25Q64_t::Reset() {
+    chSysLock();
+    CsLo();
+    ISpi.ReadWriteByte(0x66);   // Enable Reset
+    CsHi();
+    __NOP();
+    __NOP();
+    __NOP();
+    __NOP();
+    CsLo();
+    ISpi.ReadWriteByte(0x99);   // Enable Reset
+    CsHi();
+    chSysUnlock();
+    chThdSleepMicroseconds(108);
+    PowerUp();
+}
+
 #endif // Exported
 
 #if 1 // =========================== Inner methods =============================

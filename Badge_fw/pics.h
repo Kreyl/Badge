@@ -7,7 +7,7 @@
 
 #pragma once
 
-#define DBG_ENABLE_PIC  FALSE
+#define DBG_ENABLE_PIC  TRUE
 
 // ==== Battery ====
 #define PIC_BATTERY_W   54

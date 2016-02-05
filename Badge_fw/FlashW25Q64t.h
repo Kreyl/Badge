@@ -42,6 +42,7 @@ public:
     uint8_t Init();
     uint8_t Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen);
     uint8_t EraseAndWriteSector4k(uint32_t Addr, uint8_t *PBuf);
+    void Reset();
     void PowerDown();
     uint8_t PowerUp();
 };

@@ -15,6 +15,7 @@
 struct mVPercent_t {
     uint16_t mV;
     uint8_t Percent;
+    uint8_t k;
 };
 
 enum BatteryState_t {bstDischarging, bstCharging, bstIdle};
@@ -39,16 +40,16 @@ static uint8_t mV2PercentAlkaline(uint16_t mV) {
 
 #if 0 // ============================ Li-Ion ===================================
 static const mVPercent_t mVPercentTableLiIon[] = {
-        {4100, 100},
-        {4000, 90},
-        {3900, 80},
-        {3850, 70},
-        {3800, 60},
-        {3780, 50},
-        {3740, 40},
-        {3700, 30},
-        {3670, 20},
-        {3640, 10}
+        {4100, 100, 10},
+        {4000, 90,  10},
+        {3900, 80,  10},
+        {3850, 70,  5},
+        {3800, 60,  5},
+        {3780, 50,  2},
+        {3740, 40,  4},
+        {3700, 30,  4},
+        {3670, 20,  3},
+        {3640, 10,  3}
 };
 #define mVPercentTableLiIonSz    countof(mVPercentTableLiIon)
 
