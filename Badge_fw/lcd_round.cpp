@@ -81,10 +81,23 @@ const RegData_t InitData[] = {
 #define SetWriteMode()  LCD_GPIO->MODER |= LCD_MODE_MSK_WRITE
 
 // Bus operations
-__attribute__ ((always_inline)) static inline void WriteByte(uint8_t Byte) {
+// Will generate Warning, ignore it
+#define __RAMFUNC __attribute__ ((long_call, section (".data")))
+
+//__RAMFUNC
+__attribute__ ((always_inline)) static inline
+void WriteByte(uint8_t Byte) {
         LCD_GPIO->BRR  = (0xFF | (1<<LCD_WR));  // Clear bus and set WR low
         LCD_GPIO->BSRR = Byte;                  // Place data on bus
         LCD_GPIO->BSRR = (1<<LCD_WR);           // WR high
+}
+
+__RAMFUNC
+void WriteBuf(uint8_t *PBuf, uint32_t Len) {
+    for(uint32_t i=0; i<Len; i+=2) {
+        WriteByte(PBuf[i+1]);
+        WriteByte(PBuf[i]);
+    }
 }
 #endif
 
@@ -278,10 +291,11 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     }
 
     // Switch off backlight to save power
-    Led1.Set(0);
-    Led2.Set(0);
+//    Led1.Set(0);
+//    Led2.Set(0);
 
     Clk.SwitchToHsi48();    // Increase MCU freq
+    uint32_t tics = TIM2->CNT;
 
     // Check if zero file
     if(PFile->fsize == 0) {
@@ -322,10 +336,7 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
         PrepareToWriteGRAM();
         while(Sz) {
             if(f_read(PFile, IBuf, BUF_SZ, &RCnt) != FR_OK) goto end;
-            for(uint32_t i=0; i<RCnt; i+=2) {
-                WriteByte(IBuf[i+1]);
-                WriteByte(IBuf[i]);
-            }
+            WriteBuf(IBuf, RCnt);
             Sz -= RCnt;
         } // while Sz
         // Restore normal origin and direction
@@ -335,11 +346,12 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     end:
     f_close(PFile);
 
+    tics = TIM2->CNT - tics;
     // Switch back low freq
     Clk.SwitchToHsi();
 //    Clk.PrintFreqs();
 //    Uart.Printf("cr23=%X\r", RCC->CR2);
-
+    Uart.Printf("tics=%u\r", tics);
     // Restore backlight
     Led1.Set(IBrightness);
     Led2.Set(IBrightness);

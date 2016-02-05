@@ -34,6 +34,9 @@
 #define countof(A)  (sizeof(A)/sizeof(A[0]))
 #endif
 
+// Function in RAM
+//#define __RAMFUNC __attribute__ ((long_call, section (".ram0")))
+
 #ifndef TRUE
 #define TRUE    1
 #endif

@@ -195,7 +195,7 @@ void App_t::OnAdcDone() {
     uint32_t VRef = Adc.GetResult(ADC_VREFINT_CHNL);
     uint32_t BatVoltage = Adc.Adc2mV(BatAdc, VRef);
     uint8_t NewBatPercent = mV2Percent(BatVoltage);
-    Uart.Printf("mV=%u; percent=%u\r", BatVoltage, NewBatPercent);
+//    Uart.Printf("mV=%u; percent=%u\r", BatVoltage, NewBatPercent);
 
     // If not charging: if voltage is too low - display discharged battery and shutdown
     if(!IsCharging()) {
