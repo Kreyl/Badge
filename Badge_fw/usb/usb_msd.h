@@ -19,13 +19,6 @@ enum MS_ClassRequests_t {
     MS_REQ_MassStorageReset = 0xFF,
 };
 
-// Enum for the possible command status wrapper return status codes.
-enum MS_CommandStatusCodes_t {
-    MS_SCSI_COMMAND_Pass       = 0, // Command completed with no error
-    MS_SCSI_COMMAND_Fail       = 1, // Command failed to complete - host may check the exact error via a SCSI REQUEST SENSE command
-    MS_SCSI_COMMAND_PhaseError = 2, // Command failed due to being invalid in the current phase.
-};
-
 // Mass Storage Class Command Block Wrapper
 struct MS_CommandBlockWrapper_t {
     uint32_t Signature;         // Command block signature, must be MS_CBW_SIGNATURE to indicate a valid Command Block
@@ -59,6 +52,8 @@ private:
     SCSI_ReadFormatCapacitiesResponse_t ReadFormatCapacitiesResponse;
     void SCSICmdHandler();
     // Scsi commands
+    void CmdTestReady();
+    uint8_t CmdStartStopUnit();
     uint8_t CmdInquiry();
     uint8_t CmdRequestSense();
     uint8_t CmdReadCapacity10();
@@ -74,7 +69,6 @@ private:
     void TransmitBuf(uint8_t *Ptr, uint32_t Len);
     uint8_t ReceiveToBuf(uint8_t *Ptr, uint32_t Len);
 public:
-//    bool IsReady;
     void Init();
     void Reset();
     void Connect();
@@ -82,6 +76,7 @@ public:
     // Inner use
     void Task();
     thread_t *PThread;
+    bool ISayIsReady = true;
 };
 
 extern UsbMsd_t UsbMsd;

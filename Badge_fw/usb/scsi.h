@@ -99,6 +99,11 @@ extern const uint8_t Mode_Sense6_data[MODE_SENSE6_DATA_SZ];
 #define SCSI_CMD_MODE_SENSE_10                  0x5A
 #endif
 
+// Status return codes
+#define SCSI_STATUS_OK                          0x00
+#define SCSI_STATUS_CHECK_CONDITION             0x02
+#define SCSI_STATUS_BUSY                        0x08
+
 #if 1 // ==== SCSI Sense Key Values ====
 /** SCSI Sense Code to indicate no error has occurred. */
 #define SCSI_SENSE_KEY_GOOD                            0x00

@@ -24,6 +24,8 @@ TmrVirtual_t TmrMeasurement;
 // Extension of graphic files to search
 const char Extension[] = "*.bmp";
 
+//static uint8_t Buf[64];
+
 #define AHB_DIVIDER ahbDiv8
 
 int main(void) {
@@ -53,17 +55,26 @@ int main(void) {
     Lcd.SetBrightness(20);
 
     // Measure battery prior to any operation
-    App.OnAdcSamplingTime();
-    chEvtWaitAny(EVTMSK_ADC_DONE);  // Wait AdcDone
-    // Discard first measurement and restart measurement
-    App.OnAdcSamplingTime();
-    chEvtWaitAny(EVTMSK_ADC_DONE);  // Wait AdcDone
-    App.OnAdcDone();
+//    App.OnAdcSamplingTime();
+//    chEvtWaitAny(EVTMSK_ADC_DONE);  // Wait AdcDone
+//    // Discard first measurement and restart measurement
+//    App.OnAdcSamplingTime();
+//    chEvtWaitAny(EVTMSK_ADC_DONE);  // Wait AdcDone
+//    App.OnAdcDone();
 
     // Proceed with init
-    Lcd.SetBrightness(100);
+//    Lcd.SetBrightness(100);
+    //Lcd.Cls(clBlack);
 
     Mem.Init();
+
+//    Mem.Read(0, Buf, 32);
+//    Uart.Printf("%A\r", Buf, 32, ' ');
+//    uint8_t r = Mem.EraseAndWriteSector4k(0, (uint8_t*)0);
+//    Uart.Printf("r=%u\r", r);
+//    Mem.Read(0, Buf, 32);
+//    Uart.Printf("%A\r", Buf, 32, ' ');
+
     UsbMsd.Init();
 
     // ==== FAT init ====
@@ -72,7 +83,7 @@ int main(void) {
     else Uart.Printf("FS mount error: %u\r", rslt);
 
     PinSensors.Init();
-    TmrMeasurement.InitAndStart(chThdGetSelfX(), MS2ST(MEASUREMENT_PERIOD_MS), EVTMSK_SAMPLING, tvtPeriodic);
+//    TmrMeasurement.InitAndStart(chThdGetSelfX(), MS2ST(MEASUREMENT_PERIOD_MS), EVTMSK_SAMPLING, tvtPeriodic);
     // Main cycle
     App.ITask();
 }
@@ -126,7 +137,7 @@ void App_t::ITask() {
             Uart.Printf("UsbReady\r");
         }
 #endif
-#if 1 // ==== Button ====
+#if 0 // ==== Button ====
         if(EvtMsk & EVTMSK_BUTTONS) {
             BtnEvtInfo_t EInfo;
             while(BtnGetEvt(&EInfo) == OK) {
@@ -152,9 +163,10 @@ void App_t::ITask() {
             } // while getinfo ok
         } // EVTMSK_BTN_PRESS
 #endif
-        // ==== ADC ====
+#if 0   // ==== ADC ====
         if(EvtMsk & EVTMSK_SAMPLING) OnAdcSamplingTime();
         if(EvtMsk & EVTMSK_ADC_DONE) OnAdcDone();
+#endif
     } // while true
 }
 
@@ -171,19 +183,22 @@ void App_t::OnAdcDone() {
     uint32_t BatAdc = 2 * Adc.GetResult(BAT_CHNL); // to count R divider
     uint32_t VRef = Adc.GetResult(ADC_VREFINT_CHNL);
     uint32_t BatVoltage = Adc.Adc2mV(BatAdc, VRef);
-    BatteryPercent = mV2Percent(BatVoltage);
-//    Uart.Printf("mV=%u; percent=%u\r", BatVoltage, BatteryPercent);
+    uint8_t NewBatPercent = mV2Percent(BatVoltage);
+//    Uart.Printf("mV=%u; percent=%u\r", BatVoltage, NewBatPercent);
 
     // If not charging: if voltage is too low - display discharged battery and shutdown
     if(!IsCharging()) {
         if(BatVoltage < BAT_ZERO_mV) {
-            Lcd.DrawBattery(BatteryPercent, bstDischarging, lhpHide);
+            Lcd.DrawBattery(NewBatPercent, bstDischarging, lhpHide);
             chThdSleepMilliseconds(1800);
             Shutdown();
         }
     } // if not charging
     // Redraw battery charge
-    if(IsDisplayingBattery) Lcd.DrawBattery(BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpDoNotHide);
+    if(IsDisplayingBattery and NewBatPercent != BatteryPercent) { // Redraw if changed
+        Lcd.DrawBattery(NewBatPercent, (IsCharging()? bstCharging : bstDischarging), lhpDoNotHide);
+    }
+    BatteryPercent = NewBatPercent;
 }
 
 void App_t::Shutdown() {
