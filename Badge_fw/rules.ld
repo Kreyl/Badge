@@ -143,6 +143,7 @@ SECTIONS
         *(.data.*)
         *(.ramtext)
         . = ALIGN(4);
+        *(.fastrun)         /* "RAM-Functions" */
         PROVIDE(_edata = .);
         _data_end = .;
     } > DATA_RAM AT > flash

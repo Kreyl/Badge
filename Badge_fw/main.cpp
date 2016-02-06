@@ -64,6 +64,8 @@ int main(void) {
 
     // Proceed with init
     Lcd.SetBrightness(100);
+    Lcd.DrawBattery(App.BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpHide);
+    App.IsDisplayingBattery = true;
 //    Lcd.Cls(clBlack);
 
     Mem.Init();
@@ -103,10 +105,12 @@ __attribute__ ((__noreturn__))
 void App_t::ITask() {
     while(true) {
         uint32_t EvtMsk = chEvtWaitAny(ALL_EVENTS);
+#if UART_RX_ENABLED
         if(EvtMsk & EVTMSK_UART_NEW_CMD) {
             OnCmd((Shell_t*)&Uart);
             Uart.SignalCmdProcessed();
         }
+#endif
 #if 0 // ==== USB ====
         if(EvtMsk & EVTMSK_USB_CONNECTED) {
             Uart.Printf("5v is here\r");
@@ -153,7 +157,7 @@ void App_t::ITask() {
             BtnEvtInfo_t EInfo;
             while(BtnGetEvt(&EInfo) == OK) {
                 if(EInfo.Type == bePress) {
-                    Uart.Printf("Btn\r");
+//                    Uart.Printf("Btn\r");
                     // Try to mount FS again if not mounted
                     if(FATFS_IS_OK()) App.DrawNextBmp();
                     else {
@@ -198,12 +202,10 @@ void App_t::OnAdcDone() {
 //    Uart.Printf("mV=%u; percent=%u\r", BatVoltage, NewBatPercent);
 
     // If not charging: if voltage is too low - display discharged battery and shutdown
-    if(!IsCharging()) {
-        if(BatVoltage < BAT_ZERO_mV) {
-            Lcd.DrawBattery(NewBatPercent, bstDischarging, lhpHide);
-            chThdSleepMilliseconds(1800);
-            Shutdown();
-        }
+    if(!IsCharging() and (BatVoltage < BAT_ZERO_mV)) {
+        Lcd.DrawBattery(NewBatPercent, bstDischarging, lhpHide);
+        chThdSleepMilliseconds(1800);
+        Shutdown();
     } // if not charging
     // Redraw battery charge
     if(IsDisplayingBattery and NewBatPercent != BatteryPercent) { // Redraw if changed
@@ -220,7 +222,7 @@ void App_t::Shutdown() {
     Sleep::EnterStandby();
 }
 
-#if 1 // ======================= Command processing ============================
+#if UART_RX_ENABLED // ======================= Command processing ============================
 void App_t::OnCmd(Shell_t *PShell) {
 	Cmd_t *PCmd = &PShell->Cmd;
     __attribute__((unused)) int32_t dw32 = 0;  // May be unused in some configurations

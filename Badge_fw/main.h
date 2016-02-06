@@ -25,7 +25,7 @@ private:
 public:
     bool IsDisplayingBattery = false;
     void DrawNextBmp();
-    uint8_t BatteryPercent;
+    uint8_t BatteryPercent = 255; // dummy value
     void OnAdcSamplingTime();
     void OnAdcDone();
     void Shutdown();

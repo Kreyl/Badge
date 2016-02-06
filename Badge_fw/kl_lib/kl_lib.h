@@ -14,7 +14,7 @@
 #include "clocking.h"
 
 // Lib version
-#define KL_LIB_VERSION      "20160129_1456"
+#define KL_LIB_VERSION      "20160206_1234"
 
 #if defined STM32L1XX
 #include "stm32l1xx.h"
@@ -29,13 +29,22 @@
 #endif
 
 #if 1 // ============================ General ==================================
-#define PACKED __attribute__ ((__packed__))
+#define __PACKED __attribute__ ((__packed__))
 #ifndef countof
 #define countof(A)  (sizeof(A)/sizeof(A[0]))
 #endif
 
-// Function in RAM
-//#define __RAMFUNC __attribute__ ((long_call, section (".ram0")))
+/* ==== Function in RAM ====
+ * Add to LD script, inside .data section, the following line:
+ *   (.fastrun)         // "RAM-Functions"
+ *   Example:
+        . = ALIGN(4);
+        *(.fastrun)
+        PROVIDE(_edata = .);
+        _data_end = .;
+    } > DATA_RAM AT > flash
+ */
+#define __RAMFUNC __attribute__ ((long_call, section (".fastrun")))
 
 #ifndef TRUE
 #define TRUE    1

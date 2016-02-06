@@ -81,10 +81,6 @@ const RegData_t InitData[] = {
 #define SetWriteMode()  LCD_GPIO->MODER |= LCD_MODE_MSK_WRITE
 
 // Bus operations
-// Will generate Warning, ignore it
-#define __RAMFUNC __attribute__ ((long_call, section (".data")))
-
-//__RAMFUNC
 __attribute__ ((always_inline)) static inline
 void WriteByte(uint8_t Byte) {
         LCD_GPIO->BRR  = (0xFF | (1<<LCD_WR));  // Clear bus and set WR low
