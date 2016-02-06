@@ -29,7 +29,6 @@ public:
     void OnAdcSamplingTime();
     void OnAdcDone();
     void Shutdown();
-    uint8_t TryInitFS();
     // Eternal methods
     void InitThread() { PThread = chThdGetSelfX(); }
     void SignalEvt(eventmask_t Evt) {

@@ -6,7 +6,7 @@
 #include "uart.h"
 #include "main.h"
 #include "pics.h"
-
+#include "kl_fs_common.h"
 
 //#include "lcdFont8x8.h"
 //#include <string.h>
@@ -278,14 +278,7 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
 //    Uart.Printf("Draw %S\r", Filename);
     uint32_t RCnt=0, Sz=0, FOffset;
     BmpHeader_t *PHdr;
-    // Open file
-    FRESULT rslt = f_open(PFile, Filename, FA_READ);
-    if(rslt != FR_OK) {
-        if (rslt == FR_NO_FILE) Uart.Printf("%S: not found\r", Filename);
-        else Uart.Printf("OpenFile error: %u\r", rslt);
-        return;
-    }
-
+    if(TryOpenFileRead(Filename, PFile) != OK) return;
     // Switch off backlight to save power
 //    Led1.Set(0);
 //    Led2.Set(0);
@@ -354,6 +347,111 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
 
     // Signal Draw Completed
     App.SignalEvt(EVTMSK_LCD_DRAW_DONE);
+}
+#endif
+
+#if 1 // ============================= GIF =====================================
+struct LogicalScrDesc_t {
+    uint16_t Width;
+    uint16_t Height;
+    union {
+        uint8_t bFields;
+        struct {
+            uint8_t SizeOfGlobalClrTable : 3; // Least significant
+            uint8_t SortFlag : 1;
+            uint8_t ClrResolution : 3;
+            uint8_t GlobalClrTableFlag : 1; // Most significant
+        };
+    };
+    uint8_t ClrIndx;
+    uint8_t PixelAspectRatio;
+} __PACKED;
+#define LOGICAL_SCR_DESC_SZ     sizeof(LogicalScrDesc_t)
+
+struct RGB_t {
+    uint8_t R, G, B;
+} __PACKED;
+struct ClrTable_t {
+    RGB_t Clr[256];
+} __PACKED;
+
+struct ImgDesc_t {
+    uint8_t Separator;
+    uint16_t Left;
+    uint16_t Top;
+    uint16_t Width;
+    uint16_t Height;
+    union {
+        uint8_t bFields;
+        struct {
+            uint8_t SzOfLocalTable: 3; // Least significant
+            uint8_t Reserved: 2;
+            uint8_t SortFlag: 1;
+            uint8_t InterlaceFlag: 1;
+            uint8_t LocalClrTableFlag: 1; // Most significant
+        };
+    };
+} __PACKED;
+#define IMG_DESC_SZ     sizeof(ImgDesc_t)
+
+void Lcd_t::DrawGifFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile) {
+    Uart.Printf("Draw %S\r", Filename);
+    uint32_t RCnt=0, ClrTblLen;
+    uint8_t *PBuf = IBuf;
+    ClrTable_t *PTbl;
+    LogicalScrDesc_t *PDsc;
+    ImgDesc_t ImgDsc;
+
+    if(TryOpenFileRead(Filename, PFile) != OK) return;
+    Clk.SwitchToHsi48();    // Increase MCU freq
+//    uint32_t tics = TIM2->CNT;
+    if(CheckFileNotEmpty(PFile) != OK) goto end;  // Check if zero file
+    // Check signature
+    if(f_read(PFile, IBuf, 6, &RCnt) != FR_OK) goto end;
+    IBuf[6] = 0;
+    Uart.Printf("%S\r", IBuf);
+
+    // Read Logical Screen Descriptor
+    if(f_read(PFile, IBuf, LOGICAL_SCR_DESC_SZ, &RCnt) != FR_OK) goto end;
+    PDsc = (LogicalScrDesc_t*)IBuf;
+    Uart.Printf("W=%u; H=%u; ClrTblFlg=%u; ClrRes=%u; SortFlg=%u; TblSz=%u; ClrIndx=%u\r", PDsc->Width, PDsc->Height, PDsc->GlobalClrTableFlag, PDsc->ClrResolution+1, PDsc->SortFlag, PDsc->SizeOfGlobalClrTable, PDsc->ClrIndx);
+    // Read global color table if exists
+    if(PDsc->GlobalClrTableFlag == 1) {
+        ClrTblLen = 1 << (PDsc->SizeOfGlobalClrTable + 1);
+        Uart.Printf("GlobTblSz: %u\r", ClrTblLen);
+        uint32_t Sz = 3 * ClrTblLen;    // 3 bytes per pixel
+        if(f_read(PFile, IBuf, Sz, &RCnt) != FR_OK) goto end;
+        PTbl = (ClrTable_t*)IBuf;
+        PBuf = IBuf + Sz;
+    }
+
+    // Read Img descriptor
+    if(f_read(PFile, &ImgDsc, IMG_DESC_SZ, &RCnt) != FR_OK) goto end;
+    Uart.Printf("ImgL=%u; ImgT=%u; ImgW=%u; ImgH=%u; ClrTblFlg=%u; InterlaceFlag=%u; SortFlg=%u; TblSz=%u\r", ImgDsc.Left, ImgDsc.Top, ImgDsc.Width, ImgDsc.Height, ImgDsc.LocalClrTableFlag, ImgDsc.InterlaceFlag, ImgDsc.SortFlag, ImgDsc.SzOfLocalTable);
+    // Read Local Color Table if exists
+    if(ImgDsc.LocalClrTableFlag == 1) {
+        ClrTblLen = 1 << (ImgDsc.SzOfLocalTable + 1);
+        Uart.Printf("LocalTblSz: %u\r", ClrTblLen);
+        uint32_t Sz = 3 * ClrTblLen;    // 3 bytes per pixel
+        if(f_read(PFile, IBuf, Sz, &RCnt) != FR_OK) goto end;
+        PTbl = (ClrTable_t*)IBuf;
+        PBuf = IBuf + Sz;
+    }
+
+
+
+    end:
+    f_close(PFile);
+
+//    tics = TIM2->CNT - tics;
+    // Switch back low freq
+    Clk.SwitchToHsi();
+//    Clk.PrintFreqs();
+//    Uart.Printf("cr23=%X\r", RCC->CR2);
+//    Uart.Printf("tics=%u\r", tics);
+    // Restore backlight
+//    Led1.Set(IBrightness);
+//    Led2.Set(IBrightness);
 }
 #endif
 

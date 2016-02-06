@@ -52,20 +52,20 @@ int main(void) {
     PinSetupIn(BAT_CHARGE_GPIO, BAT_CHARGE_PIN, pudPullUp);
 
     Lcd.Init();
-    Lcd.SetBrightness(20);
+//    Lcd.SetBrightness(20);
 
     // Measure battery prior to any operation
-    App.OnAdcSamplingTime();
-    chEvtWaitAny(EVTMSK_ADC_DONE);  // Wait AdcDone
-    // Discard first measurement and restart measurement
-    App.OnAdcSamplingTime();
-    chEvtWaitAny(EVTMSK_ADC_DONE);  // Wait AdcDone
-    App.OnAdcDone();
+//    App.OnAdcSamplingTime();
+//    chEvtWaitAny(EVTMSK_ADC_DONE);  // Wait AdcDone
+//    // Discard first measurement and restart measurement
+//    App.OnAdcSamplingTime();
+//    chEvtWaitAny(EVTMSK_ADC_DONE);  // Wait AdcDone
+//    App.OnAdcDone();
 
     // Proceed with init
     Lcd.SetBrightness(100);
-    Lcd.DrawBattery(App.BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpHide);
-    App.IsDisplayingBattery = true;
+//    Lcd.DrawBattery(App.BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpHide);
+//    App.IsDisplayingBattery = true;
 //    Lcd.Cls(clBlack);
 
     Mem.Init();
@@ -80,25 +80,12 @@ int main(void) {
     UsbMsd.Init();
 
     // ==== FAT init ====
-    if(App.TryInitFS() == OK) App.DrawNextBmp();
+    if(TryInitFS() == OK) Lcd.DrawGifFile(50,50,"laellin.gif", &File);  //App.DrawNextBmp();
 
     PinSensors.Init();
-    TmrMeasurement.InitAndStart(chThdGetSelfX(), MS2ST(MEASUREMENT_PERIOD_MS), EVTMSK_SAMPLING, tvtPeriodic);
+//    TmrMeasurement.InitAndStart(chThdGetSelfX(), MS2ST(MEASUREMENT_PERIOD_MS), EVTMSK_SAMPLING, tvtPeriodic);
     // Main cycle
     App.ITask();
-}
-
-uint8_t App_t::TryInitFS() {
-    Mem.Reset();
-    FRESULT rslt = f_mount(&FatFS, "", 1); // Mount it now
-    if(rslt == FR_OK)  {
-        Uart.Printf("FS OK\r");
-        return OK;
-    }
-    else {
-        Uart.Printf("FS mount error: %u\r", rslt);
-        return FAILURE;
-    }
 }
 
 __attribute__ ((__noreturn__))
@@ -111,7 +98,7 @@ void App_t::ITask() {
             Uart.SignalCmdProcessed();
         }
 #endif
-#if 1 // ==== USB ====
+#if 0 // ==== USB ====
         if(EvtMsk & EVTMSK_USB_CONNECTED) {
             Uart.Printf("5v is here\r");
             chThdSleepMilliseconds(270);
@@ -152,7 +139,7 @@ void App_t::ITask() {
             Uart.Printf("UsbReady\r");
         }
 #endif
-#if 1 // ==== Button ====
+#if 0 // ==== Button ====
         if(EvtMsk & EVTMSK_BUTTONS) {
             BtnEvtInfo_t EInfo;
             while(BtnGetEvt(&EInfo) == OK) {
@@ -178,7 +165,7 @@ void App_t::ITask() {
             } // while getinfo ok
         } // EVTMSK_BTN_PRESS
 #endif
-#if 1   // ==== ADC ====
+#if 0   // ==== ADC ====
         if(EvtMsk & EVTMSK_SAMPLING) OnAdcSamplingTime();
         if(EvtMsk & EVTMSK_ADC_DONE) OnAdcDone();
 #endif

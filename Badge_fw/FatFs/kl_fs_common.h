@@ -15,3 +15,7 @@ extern DIR Dir;
 extern FILINFO FileInfo;
 
 #define FATFS_IS_OK()   (FatFS.fs_type != 0)
+
+uint8_t TryInitFS();
+uint8_t TryOpenFileRead(const char *Filename, FIL *PFile);
+uint8_t CheckFileNotEmpty(FIL *PFile);
