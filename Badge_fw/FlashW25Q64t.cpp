@@ -29,7 +29,7 @@ void MemDmaEndIrq(void *p, uint32_t flags) {
 }
 }
 
-uint8_t FlashW25Q64_t::Init() {
+void FlashW25Q64_t::Init() {
     // GPIO
     PinSetupOut(MEM_GPIO, MEM_CS, omPushPull);
     PinSetupOut(MEM_GPIO, MEM_WP, omPushPull);
@@ -45,12 +45,11 @@ uint8_t FlashW25Q64_t::Init() {
     ISpi.Setup(MEM_SPI, boMSB, cpolIdleLow, cphaFirstEdge, sbFdiv2);
     ISpi.EnableRxDma();
     ISpi.Enable();
-
     // DMA
     dmaStreamAllocate     (SPI1_DMA_RX, IRQ_PRIO_LOW, MemDmaEndIrq, NULL);
     dmaStreamSetPeripheral(SPI1_DMA_RX, &MEM_SPI->DR);
-    // Release PowerDown
-    return PowerUp();
+    // Reset and start
+    Reset();
 }
 
 // Actually, this is ReleasePWD command
@@ -152,7 +151,7 @@ void FlashW25Q64_t::Reset() {
     ISpi.ReadWriteByte(0x99);   // Enable Reset
     CsHi();
     chSysUnlock();
-    chThdSleepMicroseconds(108);
+    chThdSleepMilliseconds(18);
     PowerUp();
 }
 

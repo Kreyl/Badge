@@ -39,7 +39,7 @@ private:
     void ISendCmdAndAddr(uint8_t Cmd, uint32_t Addr);
 public:
     bool IsReady = false;
-    uint8_t Init();
+    void Init();
     uint8_t Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen);
     uint8_t EraseAndWriteSector4k(uint32_t Addr, uint8_t *PBuf);
     void Reset();

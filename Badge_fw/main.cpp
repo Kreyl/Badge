@@ -111,7 +111,7 @@ void App_t::ITask() {
             Uart.SignalCmdProcessed();
         }
 #endif
-#if 0 // ==== USB ====
+#if 1 // ==== USB ====
         if(EvtMsk & EVTMSK_USB_CONNECTED) {
             Uart.Printf("5v is here\r");
             chThdSleepMilliseconds(270);
