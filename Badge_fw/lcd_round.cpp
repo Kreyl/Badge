@@ -8,6 +8,8 @@
 #include "pics.h"
 #include "kl_fs_common.h"
 
+#include "gif_decoder.h"
+
 //#include "lcdFont8x8.h"
 //#include <string.h>
 
@@ -94,6 +96,12 @@ void WriteBuf(uint8_t *PBuf, uint32_t Len) {
         WriteByte(PBuf[i+1]);
         WriteByte(PBuf[i]);
     }
+}
+
+__RAMFUNC
+void WritePix(uint16_t Clr) {
+    WriteByte(Clr >> 8);
+    WriteByte(Clr);
 }
 #endif
 
@@ -370,9 +378,16 @@ struct LogicalScrDesc_t {
 
 struct RGB_t {
     uint8_t R, G, B;
-} __PACKED;
-struct ClrTable_t {
-    RGB_t Clr[256];
+    uint8_t RGBTo565_HiByte() const {
+        uint32_t rslt = R & 0b11111000;
+        rslt |= G >> 5;
+        return (uint8_t)rslt;
+    }
+    uint8_t RGBTo565_LoByte() const {
+        uint32_t rslt = (G << 3) & 0b11100000;
+        rslt |= B >> 3;
+        return (uint8_t)rslt;
+    }
 } __PACKED;
 
 struct ImgDesc_t {
@@ -394,25 +409,52 @@ struct ImgDesc_t {
 } __PACKED;
 #define IMG_DESC_SZ     sizeof(ImgDesc_t)
 
+
+static FIL *LPFile;
+static RGB_t *PTbl;
+
+int16_t GetByte() {
+    uint8_t b=0;
+    if(TryRead(LPFile, &b, 1) == OK) return b;
+    else {
+        Uart.Printf("ReadByte fail\r");
+        return -1;
+    }
+}
+
+void DrawLine(uint8_t *Ptr, uint32_t Sz) {
+    for(uint32_t i=0; i<Sz; i++) {
+//        Uart.PrintfNow("%u: ", Indx);
+        RGB_t *PRGB = &PTbl[Ptr[i]];
+//        Uart.PrintfNow("%X%X%X\r", PRGB->R, PRGB->G, PRGB->B);
+        // Write pixel
+        WriteByte(PRGB->RGBTo565_HiByte());
+        WriteByte(PRGB->RGBTo565_LoByte());
+    }
+//    Uart.PrintfNow("\r");
+}
+
+
 void Lcd_t::DrawGifFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile) {
     Uart.Printf("Draw %S\r", Filename);
-    uint32_t RCnt=0, ClrTblLen;
+    uint32_t ClrTblLen;
     uint8_t *PBuf = IBuf;
-    ClrTable_t *PTbl;
     LogicalScrDesc_t *PDsc;
     ImgDesc_t ImgDsc;
-
+//    uint8_t SmallBuf[4];
+//    uint8_t LZWMinCodeSz, DataBlockSz;
+#if 1 // ==== Initial data ====
     if(TryOpenFileRead(Filename, PFile) != OK) return;
     Clk.SwitchToHsi48();    // Increase MCU freq
 //    uint32_t tics = TIM2->CNT;
     if(CheckFileNotEmpty(PFile) != OK) goto end;  // Check if zero file
     // Check signature
-    if(f_read(PFile, IBuf, 6, &RCnt) != FR_OK) goto end;
+    if(TryRead(PFile, IBuf, 6) != OK) goto end;
     IBuf[6] = 0;
     Uart.Printf("%S\r", IBuf);
 
     // Read Logical Screen Descriptor
-    if(f_read(PFile, IBuf, LOGICAL_SCR_DESC_SZ, &RCnt) != FR_OK) goto end;
+    if(TryRead(PFile, IBuf, LOGICAL_SCR_DESC_SZ) != FR_OK) goto end;
     PDsc = (LogicalScrDesc_t*)IBuf;
     Uart.Printf("W=%u; H=%u; ClrTblFlg=%u; ClrRes=%u; SortFlg=%u; TblSz=%u; ClrIndx=%u\r", PDsc->Width, PDsc->Height, PDsc->GlobalClrTableFlag, PDsc->ClrResolution+1, PDsc->SortFlag, PDsc->SizeOfGlobalClrTable, PDsc->ClrIndx);
     // Read global color table if exists
@@ -420,25 +462,42 @@ void Lcd_t::DrawGifFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
         ClrTblLen = 1 << (PDsc->SizeOfGlobalClrTable + 1);
         Uart.Printf("GlobTblSz: %u\r", ClrTblLen);
         uint32_t Sz = 3 * ClrTblLen;    // 3 bytes per pixel
-        if(f_read(PFile, IBuf, Sz, &RCnt) != FR_OK) goto end;
-        PTbl = (ClrTable_t*)IBuf;
+        if(TryRead(PFile, IBuf, Sz) != OK) goto end;
+        PTbl = (RGB_t*)IBuf;
         PBuf = IBuf + Sz;
     }
 
     // Read Img descriptor
-    if(f_read(PFile, &ImgDsc, IMG_DESC_SZ, &RCnt) != FR_OK) goto end;
+    if(TryRead(PFile, &ImgDsc, IMG_DESC_SZ) != OK) goto end;
     Uart.Printf("ImgL=%u; ImgT=%u; ImgW=%u; ImgH=%u; ClrTblFlg=%u; InterlaceFlag=%u; SortFlg=%u; TblSz=%u\r", ImgDsc.Left, ImgDsc.Top, ImgDsc.Width, ImgDsc.Height, ImgDsc.LocalClrTableFlag, ImgDsc.InterlaceFlag, ImgDsc.SortFlag, ImgDsc.SzOfLocalTable);
     // Read Local Color Table if exists
     if(ImgDsc.LocalClrTableFlag == 1) {
         ClrTblLen = 1 << (ImgDsc.SzOfLocalTable + 1);
         Uart.Printf("LocalTblSz: %u\r", ClrTblLen);
         uint32_t Sz = 3 * ClrTblLen;    // 3 bytes per pixel
-        if(f_read(PFile, IBuf, Sz, &RCnt) != FR_OK) goto end;
-        PTbl = (ClrTable_t*)IBuf;
+        if(TryRead(PFile, IBuf, Sz) != OK) goto end;
+        PTbl = (RGB_t*)IBuf;
         PBuf = IBuf + Sz;
     }
 
+    // Read image data
+//    if(TryRead(PFile, SmallBuf, 2) != OK) goto end;
+//    LZWMinCodeSz = SmallBuf[0];
+//    DataBlockSz = SmallBuf[1];
+//    Uart.Printf("LZWMinCodeSz=%u; DataBlockSz=%u\r", LZWMinCodeSz, DataBlockSz);
+//    if(TryRead(PFile, PBuf, DataBlockSz) != OK) goto end;
+//    Uart.Printf("%A\r", PBuf, DataBlockSz, ' ');
+#endif
 
+#if 1 // ==== LZW decompress ====
+    // Setup window
+    SetBounds(x0+ImgDsc.Left, ImgDsc.Width, y0+ImgDsc.Top, ImgDsc.Height);
+    PrepareToWriteGRAM();
+
+    chThdSleepMilliseconds(99);
+    LPFile = PFile;
+    Decoder();
+#endif
 
     end:
     f_close(PFile);

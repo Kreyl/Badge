@@ -12,7 +12,7 @@
 
 Clk_t Clk;
 
-#define CLK_STARTUP_TIMEOUT     20007
+#define CLK_STARTUP_TIMEOUT     200007
 
 #if defined STM32L1XX
 // ==== Inner use ====
@@ -261,6 +261,7 @@ uint8_t Clk_t::EnablePLL() {
 
 uint8_t Clk_t::EnableHSI48() {
     RCC->CR2 |= RCC_CR2_HSI48ON;
+    for(volatile uint32_t i=0; i<999; i++); // Let it to stabilize. Otherwise program counter flies to space with Ozzy Osbourne
     uint32_t StartUpCounter=0;
     do {
         if(RCC->CR2 & RCC_CR2_HSI48RDY) return 0;   // Clock is ready
@@ -336,10 +337,10 @@ void Clk_t::SetupBusDividers(uint32_t Dividers) {
 static inline uint8_t WaitSWS(uint32_t Desired) {
     uint32_t StartUpCounter=0;
     do {
-        if((RCC->CFGR & RCC_CFGR_SWS) == Desired) return 0; // Done
+        if((RCC->CFGR & RCC_CFGR_SWS) == Desired) return OK; // Done
         StartUpCounter++;
     } while(StartUpCounter < CLK_STARTUP_TIMEOUT);
-    return 1; // Timeout
+    return TIMEOUT;
 }
 
 // Enables HSI, switches to HSI

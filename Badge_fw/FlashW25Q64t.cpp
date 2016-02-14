@@ -43,13 +43,13 @@ void FlashW25Q64_t::Init() {
     HoldHi();   // Hold disable
     // ==== SPI ====    MSB first, master, ClkLowIdle, FirstEdge, Baudrate=f/2
     ISpi.Setup(MEM_SPI, boMSB, cpolIdleLow, cphaFirstEdge, sbFdiv2);
-    ISpi.EnableRxDma();
     ISpi.Enable();
     // DMA
     dmaStreamAllocate     (SPI1_DMA_RX, IRQ_PRIO_LOW, MemDmaEndIrq, NULL);
     dmaStreamSetPeripheral(SPI1_DMA_RX, &MEM_SPI->DR);
     // Reset and start
-    Reset();
+//    Reset();
+    PowerUp();
 }
 
 // Actually, this is ReleasePWD command
@@ -57,10 +57,10 @@ uint8_t FlashW25Q64_t::PowerUp() {
     ISpi.ClearRxBuf();
     chSysLock();
     CsLo();
-    ISpi.ReadWriteByte(0xAB);   // Send cmd code
-    ISpi.ReadWriteByte(0x00);   // }
-    ISpi.ReadWriteByte(0x00);   // }
-    ISpi.ReadWriteByte(0x00);   // } Three dummy bytes
+    (void)ISpi.ReadWriteByte(0xAB);   // Send cmd code
+    (void)ISpi.ReadWriteByte(0x00);   // }
+    (void)ISpi.ReadWriteByte(0x00);   // }
+    (void)ISpi.ReadWriteByte(0x00);   // } Three dummy bytes
     uint8_t id = ISpi.ReadWriteByte(0x00);
     CsHi();
     chSysUnlock();
@@ -93,6 +93,7 @@ uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     // ==== Read Data ====
     ISpi.Disable();
     ISpi.SetRxOnly();   // Will not set if enabled
+    ISpi.EnableRxDma();
     dmaStreamSetMemory0(SPI1_DMA_RX, PBuf);
     dmaStreamSetTransactionSize(SPI1_DMA_RX, ALen);
     dmaStreamSetMode   (SPI1_DMA_RX, MEM_RX_DMA_MODE);
@@ -102,7 +103,10 @@ uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     chThdSuspendS(&trp);    // Wait IRQ
     dmaStreamDisable(SPI1_DMA_RX);
     CsHi();
+    ISpi.Disable();
     ISpi.SetFullDuplex();   // Remove read-only mode
+    ISpi.DisableRxDma();
+    ISpi.Enable();
     ISpi.ClearRxBuf();
     chSysUnlock();
     return OK;

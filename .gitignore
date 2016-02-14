@@ -13,3 +13,4 @@ Badge_hw/Badge.dsn
 *.drl
 Badge_fw/.settings/language.settings.xml
 Badge_hw/Badge.csv
+Badge_hw/_saved_Badge.sch

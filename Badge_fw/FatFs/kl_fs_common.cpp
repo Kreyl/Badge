@@ -45,3 +45,9 @@ uint8_t CheckFileNotEmpty(FIL *PFile) {
     }
     else return OK;
 }
+
+uint8_t TryRead(FIL *PFile, void *Ptr, uint32_t Sz) {
+    uint32_t ReadSz=0;
+    uint8_t r = f_read(PFile, Ptr, Sz, &ReadSz);
+    return (r == FR_OK and ReadSz == Sz)? OK : FAILURE;
+}
