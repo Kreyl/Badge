@@ -4,13 +4,13 @@
 	<Format>Project</Format>
 	<Header>
 		<Program name="TopoR" version="6.2"/>
-		<GUID>{F241F95A-3493-4BA0-AFF2-B52AAD965FF9}</GUID>
+		<GUID>{E7FF027D-F6D5-4903-A9B0-D83B322CB99F}</GUID>
 		<Annotation>Project file</Annotation>
 	</Header>
 	<Document>
 		<LocalLibrary />
 		<Pcb>
-			<File path=".\Badge.fsx" isopened="0"/>
+			<File path=".\Badge.fsx" isopened="1"/>
 		</Pcb>
 		<Import>
 			<Specctra>
