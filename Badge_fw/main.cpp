@@ -72,7 +72,7 @@ int main(void) {
     // MemCpy DMA
     dmaStreamAllocate(STM32_DMA1_STREAM3, IRQ_PRIO_LOW, NULL, NULL);
 
-//    if(TryInitFS() == OK) App.DrawNextBmp();
+    if(TryInitFS() == OK) App.DrawNextBmp();
 
     PinSensors.Init();
     TmrMeasurement.InitAndStart(chThdGetSelfX(), MS2ST(MEASUREMENT_PERIOD_MS), EVTMSK_SAMPLING, tktPeriodic);
@@ -243,7 +243,7 @@ void App_t::DrawNextBmp() {
     } // findnext not succeded
     lbl_Found:
     Uart.PrintfNow("%S\r", FileInfo.fname);
-    Lcd.DrawBmpFile(0,0, FileInfo.fname, &File);
+    Lcd.DrawBmpFile(50, 50, FileInfo.fname, &File);
 }
 
 // 5v Sns

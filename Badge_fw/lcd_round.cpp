@@ -94,7 +94,7 @@ void WriteByte(uint8_t Byte) {
 }
 
 __ramfunc
-void WriteBuf(uint8_t *PBuf, uint32_t Len) {
+void WriteBuf16(uint8_t *PBuf, uint32_t Len) {
     for(uint32_t i=0; i<Len; i+=2) {
         WriteByte(PBuf[i+1]);
         WriteByte(PBuf[i]);
@@ -102,9 +102,29 @@ void WriteBuf(uint8_t *PBuf, uint32_t Len) {
 }
 
 __ramfunc
-void WritePix(uint16_t Clr) {
-    WriteByte(Clr >> 8);
-    WriteByte(Clr);
+void WriteLine24(uint8_t *PBuf, int32_t Width) {
+    for(int32_t j=0; j<Width; j++) {
+        uint8_t B = *PBuf++;
+        uint8_t G = *PBuf++;
+        uint8_t R = *PBuf++;
+        uint32_t b;
+        // High byte
+        b = R & 0b11111000;
+        b |= G >> 5;
+        WriteByte(b);
+        // Low byte
+        b = (G << 3) & 0b11100000;
+        b |= B >> 3;
+        WriteByte(b);
+    } // for j
+}
+
+__ramfunc
+void WriteBuf32(uint8_t *PBuf, uint32_t Len) {
+//    for(uint32_t i=0; i<Len; i+=2) {
+//        WriteByte(PBuf[i+1]);
+//        WriteByte(PBuf[i]);
+//    }
 }
 #endif
 
@@ -265,31 +285,47 @@ void Lcd_t::PutBitmap(uint16_t x0, uint16_t y0, uint16_t Width, uint16_t Height,
 #endif
 
 #if 1 // ============================= BMP =====================================
-struct BmpHeader_t {
+// Length of next structure BmpInfo added to optimize reading
+struct BmpHeader_BmpInfoSz_t {
     uint16_t bfType;
     uint32_t bfSize;
     uint16_t Reserved[2];
     uint32_t bfOffBits;
+    // First field of next structure
+    uint32_t BmpInfoSz;
 } __packed;
 
+// Different info headers. Size absent as it included in previous structure.
+struct BmpInfoHdrCore_t {
+    uint16_t Width;
+    uint16_t Height;
+    uint16_t Planes;
+    uint16_t BitCnt;
+};
+
 struct BmpInfo_t {  // Length is absent as read first
-    uint32_t Width;
+    int32_t Width;
     int32_t Height;
     uint16_t Planes;
     uint16_t BitCnt;
     uint32_t Compression;
     uint32_t SzImage;
-    uint32_t XPelsPerMeter, YPelsPerMeter;
+    int32_t XPelsPerMeter, YPelsPerMeter;
     uint32_t ClrUsed, ClrImportant;
     // v4 begins. Only Adobe version here
     uint32_t RedMsk, GreenMsk, BlueMsk, AlphaMsk;
+    uint32_t CsType;
+    uint32_t Endpoints[9];
+    uint32_t GammaRed;
+    uint32_t GammaGreen;
+    uint32_t GammaBlue;
 } __packed;
 
 
 void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile) {
 //    Uart.Printf("Draw %S\r", Filename);
-    uint32_t RCnt=0, Sz=0, FOffset;
-    BmpHeader_t *PHdr;
+    uint32_t RCnt=0, Sz, FOffset;
+    BmpHeader_BmpInfoSz_t *PHdr;
     if(TryOpenFileRead(Filename, PFile) != OK) return;
     // Switch off backlight to save power
     Led1.Set(0);
@@ -305,26 +341,33 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     }
 
     // ==== Read BITMAPFILEHEADER ====
-    if(f_read(PFile, IBuf, sizeof(BmpHeader_t), &RCnt) != FR_OK) goto end;
-    PHdr = (BmpHeader_t*)IBuf;
-//    Uart.Printf("T=%X; Sz=%u; Off=%u\r", PHdr->bfType, PHdr->bfSize, PHdr->bfOffBits);
+    if(f_read(PFile, IBuf, sizeof(BmpHeader_BmpInfoSz_t), &RCnt) != FR_OK) goto end;
+    PHdr = (BmpHeader_BmpInfoSz_t*)IBuf;
+    Uart.Printf("T=%X; Sz=%u; Off=%u;  BmpInfoSz=%u\r", PHdr->bfType, PHdr->bfSize, PHdr->bfOffBits, PHdr->BmpInfoSz);
+    if(PHdr->bfType != 0x4D42) goto end;    // Wrong file type
     FOffset = PHdr->bfOffBits;
 
     // ==== Read BITMAPINFO ====
-    // Get struct size => version
-    if(f_read(PFile, (uint8_t*)&Sz, 4, &RCnt) != FR_OK) goto end;
-    if((Sz == 40) or (Sz == 52) or (Sz == 56)) {  // V3 or V4 adobe
+    // Struct size => version
+    Sz = PHdr->BmpInfoSz;
+    if(Sz == 12) {  // Core header
+        goto end;   // not supported
+    }
+    else {  // InfoHdr V1, V2, V3, V4 or V5
         // Read Info
         if(f_read(PFile, IBuf, Sz-4, &RCnt) != FR_OK) goto end;
         BmpInfo_t *PInfo = (BmpInfo_t*)IBuf;
-//        Uart.Printf("W=%u; H=%u; BitCnt=%u; Cmp=%u; Sz=%u;  MskR=%X; MskG=%X; MskB=%X; MskA=%X\r",
-//                PInfo->Width, PInfo->Height, PInfo->BitCnt, PInfo->Compression,
-//                PInfo->SzImage, PInfo->RedMsk, PInfo->GreenMsk, PInfo->BlueMsk, PInfo->AlphaMsk);
+        Uart.Printf("W=%d; H=%d; BitCnt=%u; Cmp=%u; Sz=%u;  MskR=%X; MskG=%X; MskB=%X; MskA=%X\r",
+                PInfo->Width, PInfo->Height, PInfo->BitCnt, PInfo->Compression,
+                PInfo->SzImage, PInfo->RedMsk, PInfo->GreenMsk, PInfo->BlueMsk, PInfo->AlphaMsk);
+//        if(PInfo->Compression != 0
         Sz = PInfo->SzImage;
+        int32_t Width = PInfo->Width;
+        int32_t Height = PInfo->Height;
 
         // Check row order
-        if(PInfo->Height < 0) { // Top to bottom, normal order. Just remove sign.
-            PInfo->Height = -PInfo->Height;
+        if(Height < 0) { // Top to bottom, normal order. Just remove sign.
+            Height = -Height;
         }
         else SetDirHOrigBottomLeft(); // Bottom to top, set origin to bottom
 
@@ -332,18 +375,38 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
         if(f_lseek(PFile, FOffset) != FR_OK) goto end;
 
         // Setup window
-        SetBounds(x0, PInfo->Width, y0, PInfo->Height);
+        SetBounds(x0, Width, y0, Height);
+
         // ==== Write RAM ====
         PrepareToWriteGRAM();
-        while(Sz) {
-            if(f_read(PFile, IBuf, BUF_SZ, &RCnt) != FR_OK) goto end;
-            WriteBuf(IBuf, RCnt);
-            Sz -= RCnt;
-        } // while Sz
+        // Select method of drawing depending on bits per pixel
+        if(PInfo->BitCnt == 16) {
+            while(Sz) {
+                if(f_read(PFile, IBuf, BUF_SZ, &RCnt) != FR_OK) goto end;
+                WriteBuf16(IBuf, RCnt);
+                Sz -= RCnt;
+            } // while Sz
+        }
+        else if(PInfo->BitCnt == 24) {
+            uint32_t LineWidth = ((Width * 3) + 3) & ~3;
+            if(LineWidth > BUF_SZ) goto end;
+            for(int32_t i=0; i<Height; i++) {
+                if(f_read(PFile, IBuf, LineWidth, &RCnt) != FR_OK) goto end;
+                WriteLine24(IBuf, Width);
+            } // for i
+        }
+        else if(PInfo->BitCnt == 32) {
+            while(Sz) {
+                if(f_read(PFile, IBuf, BUF_SZ, &RCnt) != FR_OK) goto end;
+                WriteBuf32(IBuf, RCnt);
+                Sz -= RCnt;
+            }
+        }
+
         // Restore normal origin and direction
         SetDirHOrigTopLeft();
     } // if Sz
-    else Uart.Printf("Core, V4 or V5");
+
     end:
     f_close(PFile);
 
