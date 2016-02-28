@@ -135,7 +135,7 @@ static THD_FUNCTION(UsbThd, arg) {
     UsbMsd.Task();
 }
 
-__attribute__((__noreturn__))
+__noreturn
 void UsbMsd_t::Task() {
     while(true) {
         uint32_t EvtMsk = chEvtWaitAny(ALL_EVENTS);

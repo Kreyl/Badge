@@ -19,6 +19,8 @@ static thread_reference_t trp = NULL;
 #define WpLo()      PinClear(MEM_GPIO, MEM_WP)
 #define HoldHi()    PinSet(MEM_GPIO, MEM_HOLD)
 #define HoldLo()    PinClear(MEM_GPIO, MEM_HOLD)
+#define MemPwrOn()  PinClear(MEM_PWR_GPIO, MEM_PWR)
+#define MemPwrOff() PinSet(MEM_PWR_GPIO, MEM_PWR)
 
 // Wrapper for RX IRQ
 extern "C" {
@@ -34,54 +36,58 @@ void FlashW25Q64_t::Init() {
     PinSetupOut(MEM_GPIO, MEM_CS, omPushPull);
     PinSetupOut(MEM_GPIO, MEM_WP, omPushPull);
     PinSetupOut(MEM_GPIO, MEM_HOLD, omPushPull);
+    PinSetupOut(MEM_PWR_GPIO, MEM_PWR, omPushPull);
     PinSetupAlterFunc(MEM_GPIO, MEM_CLK,  omPushPull, pudNone, MEM_SPI_AF);
     PinSetupAlterFunc(MEM_GPIO, MEM_DO, omPushPull, pudNone,   MEM_SPI_AF);
     PinSetupAlterFunc(MEM_GPIO, MEM_DI, omPushPull, pudNone,   MEM_SPI_AF);
-    // Initial values
-    CsHi();     // Disable IC
-    WpLo();     // Write protect enable
-    HoldHi();   // Hold disable
     // ==== SPI ====    MSB first, master, ClkLowIdle, FirstEdge, Baudrate=f/2
     ISpi.Setup(MEM_SPI, boMSB, cpolIdleLow, cphaFirstEdge, sbFdiv2);
     ISpi.Enable();
     // DMA
     dmaStreamAllocate     (SPI1_DMA_RX, IRQ_PRIO_LOW, MemDmaEndIrq, NULL);
     dmaStreamSetPeripheral(SPI1_DMA_RX, &MEM_SPI->DR);
-    // Reset and start
-//    Reset();
+
     PowerUp();
 }
 
 // Actually, this is ReleasePWD command
-uint8_t FlashW25Q64_t::PowerUp() {
-    ISpi.ClearRxBuf();
-    chSysLock();
-    CsLo();
-    (void)ISpi.ReadWriteByte(0xAB);   // Send cmd code
-    (void)ISpi.ReadWriteByte(0x00);   // }
-    (void)ISpi.ReadWriteByte(0x00);   // }
-    (void)ISpi.ReadWriteByte(0x00);   // } Three dummy bytes
-    uint8_t id = ISpi.ReadWriteByte(0x00);
-    CsHi();
-    chSysUnlock();
-    chThdSleepMilliseconds(1);  // Let it wake
-    if(id == 0x16) {
-        IsReady = true;
-        return OK;
-    }
-    else {
-        Uart.Printf("Flash ID Error(0x%X)\r", id);
-        return FAILURE;
-    }
+void FlashW25Q64_t::PowerUp() {
+    while(true) {
+        // Power on
+        MemPwrOn();
+        chThdSleepMilliseconds(270);
+        CsHi();     // Disable IC
+        WpLo();     // Write protect enable
+        HoldHi();   // Hold disable
+        // Send initial cmds
+        ISpi.ClearRxBuf();
+        chSysLock();
+        CsLo();
+        ISpi.ReadWriteByte(0xAB);   // Send cmd code
+        ISpi.ReadWriteByte(0x00);   // }
+        ISpi.ReadWriteByte(0x00);   // }
+        ISpi.ReadWriteByte(0x00);   // } Three dummy bytes
+        uint8_t id = ISpi.ReadWriteByte(0x00);
+        CsHi();
+        chSysUnlock();
+        chThdSleepMilliseconds(1);  // Let it wake
+        Uart.Printf("MemID=%X\r", id);
+        if(id == 0x16) {
+            IsReady = true;
+            return;
+        }
+        // ID does not match, retry
+        PowerDown();
+        chThdSleepMilliseconds(540);
+    } // while true
 }
 
 void FlashW25Q64_t::PowerDown() {
-    chSysLock();
+    IsReady = false;
     CsLo();
-    ISpi.ReadWriteByte(0xB9);
-    CsHi();
-    chSysUnlock();
-    chThdSleepMicroseconds(450);
+    WpLo();
+    HoldLo();
+    MemPwrOff();
 }
 
 #if 1 // ========================= Exported methods ============================
@@ -163,11 +169,12 @@ void FlashW25Q64_t::Reset() {
 
 #if 1 // =========================== Inner methods =============================
 void FlashW25Q64_t::ISendCmdAndAddr(uint8_t Cmd, uint32_t Addr) {
-    Convert::DWordBytes_t dwb;
-    dwb.DWord = Addr;
-    ReverseByteOrder32(dwb.DWord);
-    dwb.b[0] = Cmd;
-    for(uint8_t i=0; i<4; i++) ISpi.ReadWriteByte(dwb.b[i]);
+    uint8_t *p = (uint8_t*)&Addr;
+//    Uart.PrintfI("%X %X %X %X\r", Cmd, p[2], p[1], p[0]);
+    ISpi.ReadWriteByte(Cmd);
+    ISpi.ReadWriteByte(p[2]);
+    ISpi.ReadWriteByte(p[1]);
+    ISpi.ReadWriteByte(p[0]);
 }
 
 uint8_t FlashW25Q64_t::WritePage(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {

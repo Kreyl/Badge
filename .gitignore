@@ -14,3 +14,5 @@ Badge_hw/Badge.dsn
 Badge_fw/.settings/language.settings.xml
 Badge_hw/Badge.csv
 Badge_hw/_saved_Badge.sch
+Badge_fw/.settings/org.eclipse.cdt.managedbuilder.core.prefs
+Case/CNC/PcbHolder.g

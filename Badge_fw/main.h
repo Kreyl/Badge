@@ -12,10 +12,10 @@
 #include "uart.h"
 #include "evt_mask.h"
 #include "board.h"
+#include "lcd_round.h"
 #include "battery_consts.h"
 
-#define APP_NAME                "Badge2"
-#define APP_VERSION             __DATE__ " " __TIME__
+#define APP_NAME                "Badge3"
 
 #define MEASUREMENT_PERIOD_MS   2700
 
@@ -23,11 +23,11 @@ class App_t {
 private:
     thread_t *PThread;
 public:
-    bool IsDisplayingBattery = false;
+    bool IsDisplayingBattery;
     void DrawNextBmp();
     uint8_t BatteryPercent = 255; // dummy value
     void OnAdcSamplingTime();
-    void OnAdcDone();
+    void OnAdcDone(LcdHideProcess_t Hide);
     void Shutdown();
     // Eternal methods
     void InitThread() { PThread = chThdGetSelfX(); }

@@ -10,7 +10,7 @@
 #include <inttypes.h>
 
 // ==== General ====
-#define BOARD_NAME          "Badge2"
+#define BOARD_NAME          "Badge3"
 // MCU type as defined in the ST header.
 #define STM32F072xB
 
@@ -39,7 +39,7 @@
 
 // Battery Management
 #define BAT_MEAS_GPIO   GPIOA
-#define BAT_MEAS_PIN    0
+#define BAT_MEAS_PIN    1
 #define BAT_SW_GPIO     GPIOA
 #define BAT_SW_PIN      15
 #define BAT_CHARGE_GPIO GPIOC
@@ -52,7 +52,7 @@
 #define LCD_RS          10
 #define LCD_WR          11
 #define LCD_RD          12
-#define LCD_IMO         13
+#define LCD_PWR         13
 #define LCD_MODE_MSK_READ   0xFFFF0000
 #define LCD_MODE_MSK_WRITE  0x00005555
 #define LCD_BCKLT_GPIO  GPIOB
@@ -68,6 +68,8 @@
 #define MEM_DO          6
 #define MEM_WP          3
 #define MEM_HOLD        2
+#define MEM_PWR_GPIO    GPIOC
+#define MEM_PWR         13
 #define MEM_SPI_AF      AF0
 #endif // Flash
 

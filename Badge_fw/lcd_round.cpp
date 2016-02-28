@@ -83,14 +83,14 @@ const RegData_t InitData[] = {
 #define SetWriteMode()  LCD_GPIO->MODER |= LCD_MODE_MSK_WRITE
 
 // Bus operations
-__attribute__ ((always_inline)) static inline
+__always_inline static inline
 void WriteByte(uint8_t Byte) {
         LCD_GPIO->BRR  = (0xFF | (1<<LCD_WR));  // Clear bus and set WR low
         LCD_GPIO->BSRR = Byte;                  // Place data on bus
         LCD_GPIO->BSRR = (1<<LCD_WR);           // WR high
 }
 
-__RAMFUNC
+__ramfunc
 void WriteBuf(uint8_t *PBuf, uint32_t Len) {
     for(uint32_t i=0; i<Len; i+=2) {
         WriteByte(PBuf[i+1]);
@@ -98,7 +98,7 @@ void WriteBuf(uint8_t *PBuf, uint32_t Len) {
     }
 }
 
-__RAMFUNC
+__ramfunc
 void WritePix(uint16_t Clr) {
     WriteByte(Clr >> 8);
     WriteByte(Clr);
@@ -115,7 +115,11 @@ void Lcd_t::Init() {
     PinSetupOut(LCD_GPIO, LCD_RS,  omPushPull, pudNone, psMedium);
     PinSetupOut(LCD_GPIO, LCD_WR,  omPushPull, pudNone, psMedium);
     PinSetupOut(LCD_GPIO, LCD_RD,  omPushPull, pudNone, psMedium);
-    PinSetupAnalog(LCD_GPIO, LCD_IMO);
+    PinSetupOut(LCD_GPIO, LCD_PWR, omPushPull, pudNone, psMedium);
+    // Power on
+    PinSet(LCD_GPIO, LCD_PWR);
+    chThdSleepMilliseconds(270);
+
     // Configure data bus as outputs
     for(uint8_t i=0; i<8; i++) PinSetupOut(LCD_GPIO, i, omPushPull, pudNone, psHigh);
 
@@ -141,8 +145,8 @@ void Lcd_t::Init() {
     WriteByte(0x00);
     RsHi();
     // Read ID
-//    uint16_t r = ReadReg(0x00);
-//    Uart.Printf("rslt=%X\r", r);
+    uint16_t r = ReadReg(0x00);
+    Uart.Printf("LcdID=%X\r", r);
     // Send init Cmds
     for(uint32_t i=0; i<INIT_SEQ_CNT; i++) {
         WriteReg(InitData[i].Reg, InitData[i].Data);
@@ -358,163 +362,8 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
 }
 #endif
 
-#if 1 // ============================= GIF =====================================
-struct LogicalScrDesc_t {
-    uint16_t Width;
-    uint16_t Height;
-    union {
-        uint8_t bFields;
-        struct {
-            uint8_t SizeOfGlobalClrTable : 3; // Least significant
-            uint8_t SortFlag : 1;
-            uint8_t ClrResolution : 3;
-            uint8_t GlobalClrTableFlag : 1; // Most significant
-        };
-    };
-    uint8_t ClrIndx;
-    uint8_t PixelAspectRatio;
-} __PACKED;
-#define LOGICAL_SCR_DESC_SZ     sizeof(LogicalScrDesc_t)
-
-struct RGB_t {
-    uint8_t R, G, B;
-    uint8_t RGBTo565_HiByte() const {
-        uint32_t rslt = R & 0b11111000;
-        rslt |= G >> 5;
-        return (uint8_t)rslt;
-    }
-    uint8_t RGBTo565_LoByte() const {
-        uint32_t rslt = (G << 3) & 0b11100000;
-        rslt |= B >> 3;
-        return (uint8_t)rslt;
-    }
-} __PACKED;
-
-struct ImgDesc_t {
-    uint8_t Separator;
-    uint16_t Left;
-    uint16_t Top;
-    uint16_t Width;
-    uint16_t Height;
-    union {
-        uint8_t bFields;
-        struct {
-            uint8_t SzOfLocalTable: 3; // Least significant
-            uint8_t Reserved: 2;
-            uint8_t SortFlag: 1;
-            uint8_t InterlaceFlag: 1;
-            uint8_t LocalClrTableFlag: 1; // Most significant
-        };
-    };
-} __PACKED;
-#define IMG_DESC_SZ     sizeof(ImgDesc_t)
-
-
-static FIL *LPFile;
-static RGB_t *PTbl;
-
-int16_t GetByte() {
-    uint8_t b=0;
-    if(TryRead(LPFile, &b, 1) == OK) return b;
-    else {
-        Uart.Printf("ReadByte fail\r");
-        return -1;
-    }
-}
-
-void DrawLine(uint8_t *Ptr, uint32_t Sz) {
-    for(uint32_t i=0; i<Sz; i++) {
-//        Uart.PrintfNow("%u: ", Indx);
-        RGB_t *PRGB = &PTbl[Ptr[i]];
-//        Uart.PrintfNow("%X%X%X\r", PRGB->R, PRGB->G, PRGB->B);
-        // Write pixel
-        WriteByte(PRGB->RGBTo565_HiByte());
-        WriteByte(PRGB->RGBTo565_LoByte());
-    }
-//    Uart.PrintfNow("\r");
-}
-
-
-void Lcd_t::DrawGifFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile) {
-    Uart.Printf("Draw %S\r", Filename);
-    uint32_t ClrTblLen;
-    uint8_t *PBuf = IBuf;
-    LogicalScrDesc_t *PDsc;
-    ImgDesc_t ImgDsc;
-//    uint8_t SmallBuf[4];
-//    uint8_t LZWMinCodeSz, DataBlockSz;
-#if 1 // ==== Initial data ====
-    if(TryOpenFileRead(Filename, PFile) != OK) return;
-    Clk.SwitchToHsi48();    // Increase MCU freq
-//    uint32_t tics = TIM2->CNT;
-    if(CheckFileNotEmpty(PFile) != OK) goto end;  // Check if zero file
-    // Check signature
-    if(TryRead(PFile, IBuf, 6) != OK) goto end;
-    IBuf[6] = 0;
-    Uart.Printf("%S\r", IBuf);
-
-    // Read Logical Screen Descriptor
-    if(TryRead(PFile, IBuf, LOGICAL_SCR_DESC_SZ) != FR_OK) goto end;
-    PDsc = (LogicalScrDesc_t*)IBuf;
-    Uart.Printf("W=%u; H=%u; ClrTblFlg=%u; ClrRes=%u; SortFlg=%u; TblSz=%u; ClrIndx=%u\r", PDsc->Width, PDsc->Height, PDsc->GlobalClrTableFlag, PDsc->ClrResolution+1, PDsc->SortFlag, PDsc->SizeOfGlobalClrTable, PDsc->ClrIndx);
-    // Read global color table if exists
-    if(PDsc->GlobalClrTableFlag == 1) {
-        ClrTblLen = 1 << (PDsc->SizeOfGlobalClrTable + 1);
-        Uart.Printf("GlobTblSz: %u\r", ClrTblLen);
-        uint32_t Sz = 3 * ClrTblLen;    // 3 bytes per pixel
-        if(TryRead(PFile, IBuf, Sz) != OK) goto end;
-        PTbl = (RGB_t*)IBuf;
-        PBuf = IBuf + Sz;
-    }
-
-    // Read Img descriptor
-    if(TryRead(PFile, &ImgDsc, IMG_DESC_SZ) != OK) goto end;
-    Uart.Printf("ImgL=%u; ImgT=%u; ImgW=%u; ImgH=%u; ClrTblFlg=%u; InterlaceFlag=%u; SortFlg=%u; TblSz=%u\r", ImgDsc.Left, ImgDsc.Top, ImgDsc.Width, ImgDsc.Height, ImgDsc.LocalClrTableFlag, ImgDsc.InterlaceFlag, ImgDsc.SortFlag, ImgDsc.SzOfLocalTable);
-    // Read Local Color Table if exists
-    if(ImgDsc.LocalClrTableFlag == 1) {
-        ClrTblLen = 1 << (ImgDsc.SzOfLocalTable + 1);
-        Uart.Printf("LocalTblSz: %u\r", ClrTblLen);
-        uint32_t Sz = 3 * ClrTblLen;    // 3 bytes per pixel
-        if(TryRead(PFile, IBuf, Sz) != OK) goto end;
-        PTbl = (RGB_t*)IBuf;
-        PBuf = IBuf + Sz;
-    }
-
-    // Read image data
-//    if(TryRead(PFile, SmallBuf, 2) != OK) goto end;
-//    LZWMinCodeSz = SmallBuf[0];
-//    DataBlockSz = SmallBuf[1];
-//    Uart.Printf("LZWMinCodeSz=%u; DataBlockSz=%u\r", LZWMinCodeSz, DataBlockSz);
-//    if(TryRead(PFile, PBuf, DataBlockSz) != OK) goto end;
-//    Uart.Printf("%A\r", PBuf, DataBlockSz, ' ');
-#endif
-
-#if 1 // ==== LZW decompress ====
-    // Setup window
-    SetBounds(x0+ImgDsc.Left, ImgDsc.Width, y0+ImgDsc.Top, ImgDsc.Height);
-    PrepareToWriteGRAM();
-
-    chThdSleepMilliseconds(99);
-    LPFile = PFile;
-    Decoder();
-#endif
-
-    end:
-    f_close(PFile);
-
-//    tics = TIM2->CNT - tics;
-    // Switch back low freq
-    Clk.SwitchToHsi();
-//    Clk.PrintFreqs();
-//    Uart.Printf("cr23=%X\r", RCC->CR2);
-//    Uart.Printf("tics=%u\r", tics);
-    // Restore backlight
-//    Led1.Set(IBrightness);
-//    Led2.Set(IBrightness);
-}
-#endif
-
 void Lcd_t::DrawBattery(uint8_t Percent, BatteryState_t State, LcdHideProcess_t Hide) {
+    Uart.Printf("DrawBat\r");
     // Switch off backlight to save power if needed
     if(Hide == lhpHide) {
         Led1.Set(0);
@@ -522,8 +371,8 @@ void Lcd_t::DrawBattery(uint8_t Percent, BatteryState_t State, LcdHideProcess_t 
     }
     if(Percent > 0) Clk.SwitchToHsi48();    // Increase MCU freq
 
-    const uint8_t *PPic = PicBattery;
-    const uint8_t *PLght = PicLightning;
+    RLE_Decoder_t DecBattery((uint8_t*)PicBattery);
+    RLE_Decoder_t DecLightning((uint8_t*)PicLightning);
     uint32_t ChargeYTop = PIC_CHARGE_YB - Percent;
 
     // Select charging fill color
@@ -551,15 +400,15 @@ void Lcd_t::DrawBattery(uint8_t Percent, BatteryState_t State, LcdHideProcess_t 
                 // Draw either battery or charge value
                 if(x >= PIC_BATTERY_XL and x < PIC_BATTERY_XR and
                    y >= PIC_BATTERY_YT and y < PIC_BATTERY_YB) {
-                    bHi = *PPic++; // }
-                    bLo = *PPic++; // } read pic_battery
+                    bHi = DecBattery.GetNext(); // }
+                    bLo = DecBattery.GetNext(); // } read pic_battery
 
                     // Draw lightning if charging
                     if(State == bstCharging and
                             x >= PIC_LIGHTNING_XL and x < PIC_LIGHTNING_XR and
                             y >= PIC_LIGHTNING_YT and y < PIC_LIGHTNING_YB) {
-                        bHi = *PLght++; // }
-                        bLo = *PLght++; // } Read pic_lightning
+                        bHi = DecLightning.GetNext(); // }
+                        bLo = DecLightning.GetNext(); // } Read pic_lightning
                         if(bHi == 0 and bLo == 0) {
                             if(y >= ChargeYTop) {
                                 bHi = ChargeHi; // }
@@ -597,15 +446,15 @@ void Lcd_t::DrawBattery(uint8_t Percent, BatteryState_t State, LcdHideProcess_t 
             for(uint16_t x=PIC_BATTERY_XL; x<PIC_BATTERY_XR; x++) {
                 uint8_t bHi, bLo;
                 // Draw either battery or charge value
-                bHi = *PPic++; // }
-                bLo = *PPic++; // } read pic_battery
+                bHi = DecBattery.GetNext(); // }
+                bLo = DecBattery.GetNext(); // } read pic_battery
 
                 // Draw lightning if charging
                 if(State == bstCharging and
                         x >= PIC_LIGHTNING_XL and x < PIC_LIGHTNING_XR and
                         y >= PIC_LIGHTNING_YT and y < PIC_LIGHTNING_YB) {
-                    bHi = *PLght++; // }
-                    bLo = *PLght++; // } Read pic_lightning
+                    bHi = DecLightning.GetNext(); // }
+                    bLo = DecLightning.GetNext(); // } Read pic_lightning
                     if(bHi == 0 and bLo == 0) {
                         if(y >= ChargeYTop) {
                             bHi = ChargeHi; // }
@@ -643,15 +492,15 @@ void Lcd_t::DrawNoImage() {
     Led2.Set(0);
     Clk.SwitchToHsi48();    // Increase MCU freq
 
-    const uint8_t *PPic = PicNoImage;
+    RLE_Decoder_t Dec((uint8_t*)PicNoImage);
     SetBounds(0, LCD_W, 0, LCD_H);
     PrepareToWriteGRAM();
     for(uint16_t y=0; y<LCD_H; y++) {
         for(uint16_t x=0; x<LCD_W; x++) {
             if(x >= PIC_NOIMAGE_XL and x < PIC_NOIMAGE_XR and
                y >= PIC_NOIMAGE_YT and y < PIC_NOIMAGE_YB) {
-                WriteByte(*PPic++);
-                WriteByte(*PPic++);
+                WriteByte(Dec.GetNext());
+                WriteByte(Dec.GetNext());
             }
             else {
                 WriteByte(0);
@@ -665,3 +514,32 @@ void Lcd_t::DrawNoImage() {
     Led1.Set(IBrightness);
     Led2.Set(IBrightness);
 }
+
+#if 1 // =============================== RLE Decoder ===========================
+RLE_Decoder_t::RLE_Decoder_t(uint8_t *p) {
+    Ptr = p;
+    Counter = 0;
+    Rslt = 0;
+    Mode = rlemRepeat;
+}
+
+uint8_t RLE_Decoder_t::GetNext() {
+    if(Counter == 0) { // current row is over
+        Counter = *Ptr++;
+//        Uart.Printf("\rCnt1=0x%02X; ", Counter);
+        if(Counter & 0x80) {
+            Mode = rlemUniq;
+            Counter = -Counter;
+        }
+        else {
+            Mode = rlemRepeat;
+            Rslt = *Ptr++;
+        }
+//        Uart.Printf("\rCnt=0x%02X; Mode=%u\r", Counter, Mode);
+    }
+    Counter--;
+    if(Mode == rlemUniq) Rslt = *Ptr++;
+    return Rslt;
+}
+
+#endif

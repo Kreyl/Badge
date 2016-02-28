@@ -11,10 +11,15 @@
 #include "hal.h"
 #include "core_cmInstr.h"
 #include <cstdlib>
-#include "clocking.h"
+
+/*
+Build time:
+Define symbol BUILD_TIME in mai.cpp options with value "\"${current_date}\"".
+Maybe, to calm Eclipse, it will be required to write extra quote inthe end: "\"${current_date}\"""
+*/
 
 // Lib version
-#define KL_LIB_VERSION      "20160206_1234"
+#define KL_LIB_VERSION      "20160226_2212"
 
 #if defined STM32L1XX
 #include "stm32l1xx.h"
@@ -29,7 +34,9 @@
 #endif
 
 #if 1 // ============================ General ==================================
-#define __PACKED __attribute__ ((__packed__))
+#define __noreturn      __attribute__((noreturn))
+#define __align4        __attribute__((aligned (4)))
+// Also remember __unused and __always_inline
 #ifndef countof
 #define countof(A)  (sizeof(A)/sizeof(A[0]))
 #endif
@@ -44,7 +51,16 @@
         _data_end = .;
     } > DATA_RAM AT > flash
  */
-#define __RAMFUNC __attribute__ ((long_call, section (".fastrun")))
+#define __ramfunc __attribute__ ((long_call, section (".fastrun")))
+
+/*
+ * Early initialization code.
+ * This initialization must be performed just after stack setup and before
+ * any other initialization.
+ */
+extern "C" {
+void __early_init(void);
+}
 
 #ifndef TRUE
 #define TRUE    1
@@ -146,30 +162,31 @@ void __attribute__ ((weak)) _init(void)  {}
 #endif
 
 #if 1 // ======================= Virtual Timer =================================
-#define VIRTUAL_TIMER_KL    TRUE
+#define TIMER_KL    TRUE
 // Universal VirtualTimer callback
-void TmrVirtualCallback(void *p);
+void TmrKLCallback(void *p);
 
-enum TmrType_t {tvtOneShot, tvtPeriodic};
+enum TmrKLType_t {tktOneShot, tktPeriodic};
 
-class TmrVirtual_t {
+class TmrKL_t {
 private:
     virtual_timer_t Tmr;
-    void StartI() { chVTSetI(&Tmr, Period, TmrVirtualCallback, this); }
+    void StartI() { chVTSetI(&Tmr, Period, TmrKLCallback, this); }
     thread_t *PThread;
     systime_t Period;
     eventmask_t EvtMsk;
-    TmrType_t TmrType;
+    TmrKLType_t TmrType;
 public:
     // Thread, systime Period, EvtMsk, {tvtOneShot, tvtPeriodic}
-    void InitAndStart(thread_t *APThread, systime_t APeriod, eventmask_t AEvtMsk, TmrType_t AType) {
+    void InitAndStart(thread_t *APThread, systime_t APeriod, eventmask_t AEvtMsk, TmrKLType_t AType) {
         PThread = APThread;
         Period = APeriod;
         EvtMsk = AEvtMsk;
         TmrType = AType;
         Start();
     }
-    void Init(thread_t *APThread, systime_t APeriod, eventmask_t AEvtMsk, TmrType_t AType) {
+    // TmrReset.Init(PThread, MS2ST(RESET_INTERVAL), EVTMSK_RESET, tktOneShot);
+    void Init(thread_t *APThread, systime_t APeriod, eventmask_t AEvtMsk, TmrKLType_t AType) {
         PThread = APThread;
         Period = APeriod;
         EvtMsk = AEvtMsk;
@@ -193,21 +210,11 @@ public:
     void CallbackHandler() {    // Call it inside callback
         chSysLockFromISR();
         chEvtSignalI(PThread, EvtMsk);
-        if(TmrType == tvtPeriodic) StartI();
+        if(TmrType == tktPeriodic) StartI();
         chSysUnlockFromISR();
     }
-    TmrVirtual_t() : PThread(nullptr), Period(999), EvtMsk(0), TmrType(tvtOneShot) {}
+    TmrKL_t() : PThread(nullptr), Period(999), EvtMsk(0), TmrType(tktOneShot) {}
 };
-
-/*
-void chVTRestart(VirtualTimer *vtp, systime_t time, eventmask_t Evt);
-
-static inline void chVTStartIfNotStarted(VirtualTimer *vtp, systime_t time, eventmask_t Evt) {
-    chSysLock();
-    if(!chVTIsArmedI(vtp)) chVTSetI(vtp, time, TmrOneShotCallback, (void*)Evt);
-    chSysUnlock();
-}
-*/
 #endif
 
 #if 0 // =========================== Time ======================================
@@ -403,8 +410,8 @@ enum PinAF_t {
 
 // Set/clear
 #if defined STM32L1XX || defined STM32F2XX || defined STM32F4XX || defined STM32F042x6
-static inline void PinSet    (GPIO_TypeDef *PGpioPort, const uint16_t APinNumber) { PGpioPort->BSRRL = (uint16_t)(1<<APinNumber); }
-static inline void PinClear  (GPIO_TypeDef *PGpioPort, const uint16_t APinNumber) { PGpioPort->BSRRH = (uint16_t)(1<<APinNumber); }
+#define PinSet(PGpio, APin)     PGpio->BSRRL = ((uint16_t)(1 << (APin)))
+#define PinClear(PGpio, APin)   PGpio->BSRRH = ((uint16_t)(1 << (APin)))
 #elif defined STM32F0XX || defined STM32F10X_LD_VL
 #define PinSet(PGpio, APin)     PGpio->BSRR = ((uint32_t)(1 << (APin)))
 #define PinClear(PGpio, APin)   PGpio->BRR  = ((uint32_t)(1 << (APin)))
@@ -604,14 +611,13 @@ class PinOutput_t {
 public:
     GPIO_TypeDef *PGpio;
     uint16_t Pin;
-    PinOutMode_t OutMode;
-    void Init() const { PinSetupOut(PGpio, Pin, omPushPull); }
+    void Init(PinOutMode_t OutMode) const { PinSetupOut(PGpio, Pin, OutMode); }
     void Set(uint8_t AValue) const { if(AValue != 0) PinSet(PGpio, Pin); else PinClear(PGpio, Pin); }
-    void SetHi() const { PinSet(PGpio, Pin); }
-    void SetLo() const { PinClear(PGpio, Pin); }
+    void Hi() const { PinSet(PGpio, Pin); }
+    void Lo() const { PinClear(PGpio, Pin); }
     void Toggle() const { PinToggle(PGpio, Pin); }
-    PinOutput_t(GPIO_TypeDef *APGpio, uint16_t APin, PinOutMode_t AOutMode) :
-        PGpio(APGpio), Pin(APin), OutMode(AOutMode) {}
+    PinOutput_t(GPIO_TypeDef *APGpio, uint16_t APin) :
+        PGpio(APGpio), Pin(APin) {}
 };
 
 // ==== Digital Input Pin ====
@@ -626,7 +632,7 @@ public:
 };
 
 // ==== PWM output ====
-// Example: PinOutputPWM_t<LED_TOP_VALUE, LED_INVERTED_PWM> IChnl({GPIOB, 15, TIM11, 1});
+// Example: PinOutputPWM_t<LED_TOP_VALUE, LED_INVERTED_PWM, omPushPull> IChnl({GPIOB, 15, TIM11, 1});
 template <uint32_t TopValue, Inverted_t Inverted, PinOutMode_t OutputType>
 class PinOutputPWM_t : private Timer_t {
 private:
@@ -647,17 +653,27 @@ public:
 };
 #endif
 
-#if 0 // ==== External IRQ ====
+#if 1 // ==== External IRQ ====
 enum ExtiTrigType_t {ttRising, ttFalling, ttRisingFalling};
 
+#if defined STM32L1XX || defined STM32F4XX
+#define PIN2IRQ_CHNL(Pin)   \
+    (((Pin) > 9)? EXTI15_10_IRQn : (((Pin) > 4)? EXTI9_5_IRQn : ((Pin) + EXTI0_IRQn)))
+#elif defined STM32F030 || defined STM32F0
+#define PIN2IRQ_CHNL(Pin)   \
+    (((Pin) > 3)? EXTI4_15_IRQn : (((Pin) > 1)? EXTI2_3_IRQn : EXTI0_1_IRQn))
+#endif
+
+// Example:
+// const PinIrq_t GPinDrdy {ACC_DRDY_PIN};
+// GPinDrdy.Init(ACC_DRDY_GPIO, pudNone, ttRising);
 class PinIrq_t {
-private:
-    uint32_t IIrqChnl;
-    GPIO_TypeDef *IGPIO;
-    uint8_t IPinNumber;
 public:
-    void SetTriggerType(ExtiTrigType_t ATriggerType) {
-        uint32_t IrqMsk = 1 << IPinNumber;
+    uint8_t Pin;
+    PinIrq_t(uint16_t APin) { Pin = APin; }
+
+    void SetTriggerType(ExtiTrigType_t ATriggerType) const {
+        uint32_t IrqMsk = 1 << Pin;
         switch(ATriggerType) {
             case ttRising:
                 EXTI->RTSR |=  IrqMsk;  // Rising trigger enabled
@@ -674,37 +690,29 @@ public:
         } // switch
     }
 
-    void Setup(GPIO_TypeDef *GPIO, const uint8_t APinNumber, ExtiTrigType_t ATriggerType) {
-        IGPIO = GPIO;
-        IPinNumber = APinNumber;
+    void Init(GPIO_TypeDef *PGPIO, PinPullUpDown_t APullUpDown, ExtiTrigType_t ATriggerType) const {
+        // Init pin as input
+        PinSetupIn(PGPIO, Pin, APullUpDown);
         rccEnableAPB2(RCC_APB2ENR_SYSCFGEN, FALSE); // Enable sys cfg controller
         // Connect EXTI line to the pin of the port
-        uint8_t Indx   = APinNumber / 4;            // Indx of EXTICR register
-        uint8_t Offset = (APinNumber & 0x03) * 4;   // Offset in EXTICR register
+        uint8_t Indx   = Pin / 4;            // Indx of EXTICR register
+        uint8_t Offset = (Pin & 0x03) * 4;   // Offset in EXTICR register
         SYSCFG->EXTICR[Indx] &= ~((uint32_t)0b1111 << Offset);  // Clear port-related bits
         // GPIOA requires all zeroes => nothing to do in this case
-        if     (GPIO == GPIOB) SYSCFG->EXTICR[Indx] |= (uint32_t)0b0001 << Offset;
-        else if(GPIO == GPIOC) SYSCFG->EXTICR[Indx] |= (uint32_t)0b0010 << Offset;
+        if     (PGPIO == GPIOB) SYSCFG->EXTICR[Indx] |= (uint32_t)0b0001 << Offset;
+        else if(PGPIO == GPIOC) SYSCFG->EXTICR[Indx] |= (uint32_t)0b0010 << Offset;
         // Configure EXTI line
-        uint32_t IrqMsk = 1 << APinNumber;
+        uint32_t IrqMsk = 1 << Pin;
         EXTI->IMR  |=  IrqMsk;      // Interrupt mode enabled
         EXTI->EMR  &= ~IrqMsk;      // Event mode disabled
         SetTriggerType(ATriggerType);
         EXTI->PR    =  IrqMsk;      // Clean irq flag
-        // Get IRQ channel
-#if defined STM32L1XX_MD || defined STM32F4XX
-        if      ((APinNumber >= 0)  and (APinNumber <= 4))  IIrqChnl = EXTI0_IRQn + APinNumber;
-        else if ((APinNumber >= 5)  and (APinNumber <= 9))  IIrqChnl = EXTI9_5_IRQn;
-        else if ((APinNumber >= 10) and (APinNumber <= 15)) IIrqChnl = EXTI15_10_IRQn;
-#elif defined STM32F030
-        if      ((APinNumber >= 0)  and (APinNumber <= 1))  IIrqChnl = EXTI0_1_IRQn;
-        else if ((APinNumber >= 2)  and (APinNumber <= 3))  IIrqChnl = EXTI2_3_IRQn;
-        else if ((APinNumber >= 4)  and (APinNumber <= 15)) IIrqChnl = EXTI4_15_IRQn;
-#endif
     }
-//    void EnableIrq(const uint32_t Priority) { nvicEnableVector(IIrqChnl, CORTEX_PRIORITY_MASK(Priority)); }
-    void DisableIrq() { nvicDisableVector(IIrqChnl); }
-    void CleanIrqFlag() { EXTI->PR = (1 << IPinNumber); }
+    void EnableIrq(const uint32_t Priority) const { nvicEnableVector(PIN2IRQ_CHNL(Pin), Priority); }
+    void DisableIrq() const { nvicDisableVector(PIN2IRQ_CHNL(Pin)); }
+    void CleanIrqFlag() const { EXTI->PR = (1 << Pin); }
+    bool IsIrqPending() const { return BitIsSet(EXTI->PR, (1 << Pin)); }
+    void GenerateIrq()  const { EXTI->SWIER = (1 << Pin); }
 };
 #endif // EXTI
 
@@ -821,8 +829,8 @@ public:
 #elif defined STM32F072xB
         if(BitNumber == bitn16) PSpi->CR2 = (uint16_t)0b1111 << 8;
         else PSpi->CR2 = ((uint16_t)0b0111 << 8) | SPI_CR2_FRXTH; // 8 bit
-#endif
         PSpi->I2SCFGR &= ~((uint16_t)SPI_I2SCFGR_I2SMOD);       // Disable I2S
+#endif
     }
     void Enable () { PSpi->CR1 |=  SPI_CR1_SPE; }
     void Disable() { PSpi->CR1 &= ~SPI_CR1_SPE; }
@@ -832,7 +840,9 @@ public:
     void DisableRxDma() { PSpi->CR2 &= ~SPI_CR2_RXDMAEN; }
     void SetRxOnly()    { PSpi->CR1 |=  SPI_CR1_RXONLY; }
     void SetFullDuplex(){ PSpi->CR1 &= ~SPI_CR1_RXONLY; }
+#if defined STM32F072xB
     void WaitFTLVLZero(){ while(PSpi->SR & SPI_SR_FTLVL); }
+#endif
     void WaitBsyHi2Lo() { while(PSpi->SR & SPI_SR_BSY); }
     void ClearRxBuf()   { while(PSpi->SR & SPI_SR_RXNE) (void)PSpi->DR; }
     uint8_t ReadWriteByte(uint8_t AByte) {
@@ -848,8 +858,13 @@ public:
 };
 #endif
 
-#if 0 // ============================== I2C ====================================
-#define I2C_KL  TRUE
+#if I2C_REQUIRED // ========================= I2C ==============================
+#define I2C_ASYNC       TRUE
+/* Example:
+ * i2c_t i2c (I2C_ACC, ACC_I2C_GPIO, ACC_I2C_SCL_PIN, ACC_I2C_SDA_PIN,
+ * 400000, I2C_ACC_DMA_TX, I2C_ACC_DMA_RX );
+ */
+
 #define I2C_DMATX_MODE  STM32_DMA_CR_CHSEL(DmaChnl) |   \
                         DMA_PRIORITY_LOW | \
                         STM32_DMA_CR_MSIZE_BYTE | \
@@ -900,7 +915,7 @@ private:
     uint8_t WaitBTF();
 public:
     bool Error;
-    Thread *PRequestingThread;
+    thread_reference_t ThdRef;
     const stm32_dma_stream_t *PDmaTx, *PDmaRx;
     void Init();
     void Standby();
@@ -915,9 +930,8 @@ public:
             uint32_t BitrateHz,
             const stm32_dma_stream_t *APDmaTx, const stm32_dma_stream_t *APDmaRx) :
                 ii2c(pi2c), IPGpio(PGpio), ISclPin(SclPin), ISdaPin(SdaPin), IBitrateHz(BitrateHz),
-                Error(false), PRequestingThread(nullptr),
+                Error(false), ThdRef(nullptr),
                 PDmaTx(APDmaTx), PDmaRx(APDmaRx) {}
-
 };
 #endif
 
@@ -979,5 +993,314 @@ public:
     uint8_t WriteBuf(void *PSrc, uint32_t Sz, uint32_t Addr);
 };
 
+
+#endif
+
+#if 1 // =========================== Clocking ==================================
+#if defined STM32L1XX_MDP
+#include "stm32l1xx.h"
+/*
+ * Right after reset, CPU works on internal MSI source.
+ * To switch to external src (HSE) without dividing (i.e. SysClk == CrystalFreq),
+ * call SwitchToHSE(), and then optionally HSIDisable().
+ * To switch from HSE to HSI, call SwitchToHSI() then optionally HSEDisable().
+ * To switch to PLL, disable it first with PLLDisable(), then setup dividers
+ * with SetupPLLDividers(), then call SwitchToPLL(). Then disable HSI if needed.
+ *
+ * Do not forget to update Freq values after switching.
+ *
+ * AHB  freq max = 32 MHz;
+ * APB1 freq max = 32 MHz;
+ * APB2 freq max = 32 MHz;
+ */
+
+#define HSI_FREQ_HZ         16000000    // Freq of internal generator, not adjustable
+#define LSI_FREQ_HZ         37000       // Freq of internal generator, not adjustable
+
+enum ClkSrc_t {csHSI, csHSE, csPLL, csMSI};
+enum PllMul_t {
+    pllMul3 = 0b0000,
+    pllMul4 = 0b0001,
+    pllMul6 = 0b0010,
+    pllMul8 = 0b0011,
+    pllMul12= 0b0100,
+    pllMul16= 0b0101,
+    pllMul24= 0b0110,
+    pllMul32= 0b0111,
+    pllMul48= 0b1000,
+};
+
+enum PllDiv_t {pllDiv2=0b01, pllDiv3=0b10, pllDiv4=0b11};
+
+enum AHBDiv_t {
+    ahbDiv1=0b0000,
+    ahbDiv2=0b1000,
+    ahbDiv4=0b1001,
+    ahbDiv8=0b1010,
+    ahbDiv16=0b1011,
+    ahbDiv64=0b1100,
+    ahbDiv128=0b1101,
+    ahbDiv256=0b1110,
+    ahbDiv512=0b1111
+};
+enum APBDiv_t {apbDiv1=0b000, apbDiv2=0b100, apbDiv4=0b101, apbDiv8=0b110, apbDiv16=0b111};
+
+class Clk_t {
+private:
+    uint8_t EnableHSE();
+    uint8_t EnablePLL();
+    uint8_t EnableMSI();
+public:
+    // Frequency values
+    uint32_t AHBFreqHz;     // HCLK: AHB Bus, Core, Memory, DMA; 32 MHz max
+    uint32_t APB1FreqHz;    // PCLK1: APB1 Bus clock; 32 MHz max
+    uint32_t APB2FreqHz;    // PCLK2: APB2 Bus clock; 32 MHz max
+    uint8_t Timer2_7ClkMulti = 1;
+    uint8_t Timer9_11ClkMulti = 1;
+    // SysClk switching
+    uint8_t SwitchToHSI();
+    uint8_t SwitchToHSE();
+    uint8_t SwitchToPLL();
+    uint8_t SwitchToMSI();
+    void DisableHSE() { RCC->CR &= ~RCC_CR_HSEON; }
+    uint8_t EnableHSI();
+    void DisableHSI() { RCC->CR &= ~RCC_CR_HSION; }
+    void DisablePLL() { RCC->CR &= ~RCC_CR_PLLON; }
+    void DisableMSI() { RCC->CR &= ~RCC_CR_MSION; }
+    void SetupBusDividers(AHBDiv_t AHBDiv, APBDiv_t APB1Div, APBDiv_t APB2Div);
+    uint8_t SetupPLLMulDiv(PllMul_t PllMul, PllDiv_t PllDiv);
+    void UpdateFreqValues();
+    //void UpdateSysTick() { SysTick->LOAD = AHBFreqHz / CH_FREQUENCY - 1; }
+    void SetupFlashLatency(uint8_t AHBClk_MHz);
+    // LSI
+    void EnableLSI() {
+        RCC->CSR |= RCC_CSR_LSION;
+        while(!(RCC->CSR & RCC_CSR_LSIRDY));
+    }
+    void DisableLSI() { RCC->CSR &= RCC_CSR_LSION; }
+    // LSE
+    void StartLSE() {
+        RCC->APB1ENR |= RCC_APB1ENR_PWREN;
+        PWR->CR |= PWR_CR_DBP;
+        RCC->CSR |= RCC_CSR_LSEON;
+    }
+    bool IsLseOn() { return (RCC->CSR & RCC_CSR_LSERDY); }
+    void DisableLSE() {
+        RCC->APB1ENR |= RCC_APB1ENR_PWREN;
+        PWR->CR |= PWR_CR_DBP;
+        RCC->CSR &= ~RCC_CSR_LSEON;
+    }
+
+    void PrintFreqs();
+};
+
+extern Clk_t Clk;
+
+// =============================== V Core ======================================
+enum VCore_t {vcore1V2=0b11, vcore1V5=0b10, vcore1V8=0b01};
+extern VCore_t VCore;
+void SetupVCore(VCore_t AVCore);
+
+#elif defined STM32F0XX
+/*
+ * Right after reset, CPU works on internal (HSI) source.
+ * To switch to external src (HSE) without dividing (i.e. SysClk == CrystalFreq),
+ * call SwitchToHSE(), and then optionally HSIDisable().
+ * To switch from HSE to HSI, call SwitchToHSI() then optionally HSEDisable().
+ * To switch to PLL, disable it first with PLLDisable(), then setup dividers
+ * with SetupPLLDividers(), then call SwitchToPLL(). Then disable HSI if needed.
+ *
+ * Do not forget to update Freq values after switching.
+ *
+ * Keep in mind that Flash latency need to be increased at higher speeds.
+ * Tune it with SetupFlashLatency.
+ *
+ * AHB  freq max = 48 MHz;
+ * APB  freq max = 48 MHz;
+ */
+
+#define HSI_FREQ_HZ     8000000 // Freq of internal generator, not adjustable
+#define HSI48_FREQ_HZ   48000000
+
+enum PllMul_t {
+    pllMul2=0,
+    pllMul3=1,
+    pllMul4=2,
+    pllMul5=3,
+    pllMul6=4,
+    pllMul7=5,
+    pllMul8=6,
+    pllMul9=7,
+    pllMul10=8,
+    pllMul11=9,
+    pllMul12=10,
+    pllMul13=11,
+    pllMul14=12,
+    pllMul15=13,
+    pllMul16=14
+};
+
+enum PllSrc_t {plsHSIdiv2=0b00, plsHSIdivPREDIV=0b01, plsHSEdivPREDIV=0b10, plsHSI48divPREDIV=0b11};
+enum ClkSrc_t {csHSI=0b00, csHSE=0b01, csPLL=0b10, csHSI48=0b11};
+
+enum AHBDiv_t {
+    ahbDiv1=0b0000,
+    ahbDiv2=0b1000,
+    ahbDiv4=0b1001,
+    ahbDiv8=0b1010,
+    ahbDiv16=0b1011,
+    ahbDiv64=0b1100,
+    ahbDiv128=0b1101,
+    ahbDiv256=0b1110,
+    ahbDiv512=0b1111
+};
+enum APBDiv_t {apbDiv1=0b000, apbDiv2=0b100, apbDiv4=0b101, apbDiv8=0b110, apbDiv16=0b111};
+
+class Clk_t {
+private:
+    uint8_t EnableHSE();
+    uint8_t EnableHSI();
+    uint8_t EnablePLL();
+    // To Hsi48 and back again
+    uint32_t ISavedAhbDividers;
+    bool IHsi48WasOn;
+public:
+    // Frequency values
+    uint32_t AHBFreqHz;     // HCLK: AHB Bus, Core, Memory, DMA; 48 MHz max
+    uint32_t APBFreqHz;     // PCLK: APB Bus clock; 48 MHz max
+    uint8_t TimerClkMulti = 1;
+    // SysClk switching
+    uint8_t SwitchTo(ClkSrc_t AClkSrc);
+#if 1 // To Hsi48 and back again
+    void SwitchToHsi48();
+    void SwitchToHsi();
+#endif
+    // Clk Enables
+    uint8_t EnableHSI48();
+    void EnableCRS();
+    void EnableCSS()    { RCC->CR  |=  RCC_CR_CSSON; }
+    // Clk Disables
+    void DisableCSS()   { RCC->CR  &= ~RCC_CR_CSSON; }
+    void DisableHSE()   { RCC->CR  &= ~RCC_CR_HSEON; }
+    void DisableHSI()   { RCC->CR  &= ~RCC_CR_HSION; }
+    void DisablePLL()   { RCC->CR  &= ~RCC_CR_PLLON; }
+    void DisableHSI48() { RCC->CR2 &= ~RCC_CR2_HSI48ON; }
+    void DisableCRS();
+    // Checks
+    bool IsHSI48On() { return (RCC->CR2 & RCC_CR2_HSI48ON); }
+    uint32_t GetAhbApbDividers() { return RCC->CFGR & (RCC_CFGR_HPRE | RCC_CFGR_PPRE); }
+    // Setups
+    void SelectUSBClock_HSI48() { RCC->CFGR3 &= ~RCC_CFGR3_USBSW; }
+    void SetupBusDividers(AHBDiv_t AHBDiv, APBDiv_t APBDiv);
+    void SetupBusDividers(uint32_t Dividers);
+    uint8_t SetupPLLDividers(uint8_t HsePreDiv, PllMul_t PllMul);
+    void UpdateFreqValues();
+    void SetupFlashLatency(uint32_t FrequencyHz);
+    void EnablePrefetch()  { FLASH->ACR |=  FLASH_ACR_PRFTBE; }
+    void DisablePrefetch() { FLASH->ACR &= ~FLASH_ACR_PRFTBE; }
+
+    void PrintFreqs();
+};
+
+extern Clk_t Clk;
+
+#elif defined STM32F4xx_MCUCONF
+#include "stm32f4xx.h"
+#include "board.h"
+
+#define HSI_FREQ_HZ         16000000    // Freq of internal generator, not adjustable
+#define LSI_FREQ_HZ         32000       // Freq of low power internal generator, may vary depending on voltage, not adjustable
+#define CLK_STARTUP_TIMEOUT 2007        // tics
+
+enum ClkSrc_t {csHSI, csHSE, csPLL};
+enum AHBDiv_t {
+    ahbDiv1=0b0000,
+    ahbDiv2=0b1000,
+    ahbDiv4=0b1001,
+    ahbDiv8=0b1010,
+    ahbDiv16=0b1011,
+    ahbDiv64=0b1100,
+    ahbDiv128=0b1101,
+    ahbDiv256=0b1110,
+    ahbDiv512=0b1111
+};
+enum APBDiv_t {apbDiv1=0b000, apbDiv2=0b100, apbDiv4=0b101, apbDiv8=0b110, apbDiv16=0b111};
+enum PllSysDiv_P_t {pllSysDiv2=0b00, pllSysDiv4=0b01, pllSysDiv6=0b10, pllSysDiv8=0b11};
+enum Mco1Src_t {mco1HSI=0x00000000, mco1LSE=0x00200000, mco1HSE=0x00400000, mco1PLL=0x00600000};
+enum Mco2Src_t {mco2Sys=0x00000000, mco2PLLI2S=0x40000000, mco2HSE=0x80000000, mco2PLL=0xC0000000};
+enum McoDiv_t {mcoDiv1=0b000, mcoDiv2=0b100, mcoDiv3=0b101, mcoDiv4=0b110, mcoDiv5=0b111};
+
+class Clk_t {
+private:
+    uint8_t HSEEnable();
+    uint8_t HSIEnable();
+    uint8_t PLLEnable();
+public:
+    // Frequency values
+    uint32_t AHBFreqHz;     // HCLK: AHB Buses, Core, Memory, DMA; 120 MHz max
+    uint32_t APB1FreqHz;    // PCLK1: APB1 Bus clock; 30 MHz max
+    uint32_t APB2FreqHz;    // PCLK2: APB2 Bus clock; 60 MHz max
+    uint32_t UsbSdioFreqHz; // Clock is intended to be 48 MHz
+    uint8_t TimerAPB1ClkMulti = 1;
+    uint8_t TimerAPB2ClkMulti = 1;
+    // Clk switching
+    uint8_t SwitchToHSI();
+    uint8_t SwitchToHSE();
+    uint8_t SwitchToPLL();
+    void HSEDisable() { RCC->CR &= ~RCC_CR_HSEON; }
+    void HSIDisable() { RCC->CR &= ~RCC_CR_HSION; }
+    void PLLDisable() { RCC->CR &= ~RCC_CR_PLLON; }
+    void LsiEnable();
+    // Dividers
+    void SetupBusDividers(AHBDiv_t AHBDiv, APBDiv_t APB1Div, APBDiv_t APB2Div);
+    uint8_t SetupPLLDividers(uint8_t InputDiv_M, uint16_t Multi_N, PllSysDiv_P_t SysDiv_P, uint8_t UsbDiv_Q);
+    void UpdateFreqValues();
+    uint8_t SetupFlashLatency(uint8_t AHBClk_MHz, uint16_t Voltage_mV=3300);
+    // Disabling the prefetch buffer avoids extra Flash access that consumes 20 mA for 128-bit line fetching.
+    void EnablePrefetch()  { FLASH->ACR |=  FLASH_ACR_PRFTEN; }
+    void DisablePrefetch() { FLASH->ACR &= ~FLASH_ACR_PRFTEN; }
+    // Special frequencies
+    void SetFreq12Mhz() {
+        if(AHBFreqHz < 12000000) SetupFlashLatency(12); // Rise flash latency now if current freq > required
+        SetupBusDividers(ahbDiv4, apbDiv1, apbDiv1);
+        UpdateFreqValues();
+        SetupFlashLatency(AHBFreqHz/1000000);
+    }
+    void SetFreq48Mhz() {
+        if(AHBFreqHz < 48000000) SetupFlashLatency(48);     // Rise flash latency now if current freq > required
+//        SetupBusDividers(ahbDiv1, apbDiv2, apbDiv1);    // APB1: 30MHz max; APB2: 60MHz max
+        SetupBusDividers(ahbDiv1, apbDiv4, apbDiv4);    // Peripheral freqs stay the same
+        UpdateFreqValues();
+        SetupFlashLatency(AHBFreqHz/1000000);
+    }
+
+    void PrintFreqs();
+
+    // I2S
+    void SetupI2SClk(uint32_t APLL_I2S_N, uint32_t APLL_I2S_R) {
+        RCC->CFGR &= ~RCC_CFGR_I2SSRC;              // PLLI2S clock used as I2S clock source
+        RCC->PLLI2SCFGR = (APLL_I2S_N << 6) | (APLL_I2S_R << 28); // Configure PLLI2S
+        RCC->CR |= RCC_CR_PLLI2SON;                 // Enable PLLI2S
+        while((RCC->CR & RCC_CR_PLLI2SRDY) == 0);   // Wait till PLLI2S is ready
+    }
+
+    // Clock output
+    void MCO1Enable(Mco1Src_t Src, McoDiv_t Div);
+    void MCO1Disable();
+    void MCO2Enable(Mco2Src_t Src, McoDiv_t Div);
+    void MCO2Disable();
+};
+
+extern Clk_t Clk;
+
+/*
+ * Early initialization code.
+ * This initialization must be performed just after stack setup and before
+ * any other initialization.
+ */
+extern "C" {
+void __early_init(void);
+}
+#endif
 
 #endif

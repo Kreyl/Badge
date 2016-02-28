@@ -10,7 +10,7 @@
 	<Document>
 		<LocalLibrary />
 		<Pcb>
-			<File path=".\Badge.fsx" isopened="1"/>
+			<File path=".\Badge.fsx" isopened="0"/>
 		</Pcb>
 		<Import>
 			<Specctra>

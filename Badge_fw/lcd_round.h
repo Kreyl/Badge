@@ -24,6 +24,21 @@
 
 #define BUF_SZ              1024
 
+// RLE decoder for lcd image converter 2014-12-14 12:47:27
+enum RLEMode_t { rlemUniq, rlemRepeat };
+
+class RLE_Decoder_t {
+private:
+    RLEMode_t Mode;
+    uint8_t *Ptr;
+    uint8_t Counter;
+    uint8_t Rslt;
+public:
+    RLE_Decoder_t(uint8_t *p);
+    uint8_t GetNext();
+};
+
+// ==== LCD ====
 enum LcdHideProcess_t {lhpHide, lhpDoNotHide};
 
 class Lcd_t {
@@ -58,7 +73,6 @@ public:
 //    void DrawImage(const uint8_t x, const uint8_t y, const uint8_t *Img);
 //    void DrawSymbol(const uint8_t x, const uint8_t y, const uint8_t ACode);
     void DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile);
-    void DrawGifFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile);
     void DrawBattery(uint8_t Percent, BatteryState_t State, LcdHideProcess_t Hide);
     void DrawNoImage();
 };

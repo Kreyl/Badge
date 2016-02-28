@@ -8,7 +8,6 @@
 #include <descriptors_msd.h>
 #include <usb_msd.h>
 #include "main.h"
-#include "lcd_round.h"
 #include "SimpleSensors.h"
 #include "FlashW25Q64t.h"
 #include "kl_fs_common.h"
@@ -16,8 +15,10 @@
 #include "kl_adc.h"
 #include "battery_consts.h"
 
+#include "pics.h"
+
 App_t App;
-TmrVirtual_t TmrMeasurement;
+TmrKL_t TmrMeasurement;
 
 #define IsCharging()    (!PinIsSet(BAT_CHARGE_GPIO, BAT_CHARGE_PIN))
 
@@ -40,33 +41,43 @@ int main(void) {
     App.InitThread();
 
     // ==== Init hardware ====
-    Uart.Init(115200, UART_GPIO, UART_TX_PIN);//, UART_GPIO, UART_RX_PIN);
-    Uart.Printf("\r%S %S\r", APP_NAME, APP_VERSION);
+    Uart.Init(115200, UART_GPIO, UART_TX_PIN);
+    Uart.Printf("\r%S %S\r", APP_NAME, BUILD_TIME);
     Clk.PrintFreqs();
 
-    // Battery: ADC
-    Adc.Init();
-    PinSetupAnalog(BAT_MEAS_GPIO, BAT_MEAS_PIN);
-    PinSetupOut(BAT_SW_GPIO, BAT_SW_PIN, omOpenDrain, pudNone);
-    PinSet(BAT_SW_GPIO, BAT_SW_PIN);
-    PinSetupIn(BAT_CHARGE_GPIO, BAT_CHARGE_PIN, pudPullUp);
+//    RLE_Decoder_t Dec;
+//    Dec.Init((uint8_t*)PicBattery);
+//
+//    for(uint32_t i=1; i<=1000; i++) {
+//        Uart.Printf("%02X ", Dec.GetNext());
+//        if(i % 10 == 0) Uart.Printf("\r");
+//    }
 
+
+
+    // Battery: ADC and charging
+//    Adc.Init();
+//    PinSetupAnalog(BAT_MEAS_GPIO, BAT_MEAS_PIN);
+//    PinSetupOut(BAT_SW_GPIO, BAT_SW_PIN, omOpenDrain, pudNone);
+//    PinSet(BAT_SW_GPIO, BAT_SW_PIN);
+//    PinSetupIn(BAT_CHARGE_GPIO, BAT_CHARGE_PIN, pudPullUp);
+//
     Lcd.Init();
 //    Lcd.SetBrightness(20);
-
-    // Measure battery prior to any operation
+//
+//    // Measure battery prior to any operation
 //    App.OnAdcSamplingTime();
 //    chEvtWaitAny(EVTMSK_ADC_DONE);  // Wait AdcDone
 //    // Discard first measurement and restart measurement
 //    App.OnAdcSamplingTime();
-//    chEvtWaitAny(EVTMSK_ADC_DONE);  // Wait AdcDone
-//    App.OnAdcDone();
-
-    // Proceed with init
+//    chEvtWaitAny(EVTMSK_ADC_DONE);      // Wait AdcDone
+//    App.IsDisplayingBattery = true;     // Do not draw battery now
+//    App.OnAdcDone(lhpHide);             // Will draw battery and shutdown if discharged
+//    // Will proceed with init if not shutdown
     Lcd.SetBrightness(100);
-//    Lcd.DrawBattery(App.BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpHide);
-//    App.IsDisplayingBattery = true;
-//    Lcd.Cls(clBlack);
+
+    //Lcd.DrawBattery(50, bstCharging, lhpHide);
+    Lcd.DrawNoImage();
 
     Mem.Init();
 
@@ -77,13 +88,13 @@ int main(void) {
 //    Mem.Read(0, Buf, 32);
 //    Uart.Printf("%A\r", Buf, 32, ' ');
 
-    UsbMsd.Init();
+//    UsbMsd.Init();
 
     // ==== FAT init ====
-    if(TryInitFS() == OK) Lcd.DrawGifFile(50,50,"laellin.gif", &File);  //App.DrawNextBmp();
+//    if(TryInitFS() == OK) App.DrawNextBmp();
 
-    PinSensors.Init();
-//    TmrMeasurement.InitAndStart(chThdGetSelfX(), MS2ST(MEASUREMENT_PERIOD_MS), EVTMSK_SAMPLING, tvtPeriodic);
+//    PinSensors.Init();
+//    TmrMeasurement.InitAndStart(chThdGetSelfX(), MS2ST(MEASUREMENT_PERIOD_MS), EVTMSK_SAMPLING, tktPeriodic);
     // Main cycle
     App.ITask();
 }
@@ -98,7 +109,7 @@ void App_t::ITask() {
             Uart.SignalCmdProcessed();
         }
 #endif
-#if 0 // ==== USB ====
+#if 1 // ==== USB ====
         if(EvtMsk & EVTMSK_USB_CONNECTED) {
             Uart.Printf("5v is here\r");
             chThdSleepMilliseconds(270);
@@ -165,9 +176,9 @@ void App_t::ITask() {
             } // while getinfo ok
         } // EVTMSK_BTN_PRESS
 #endif
-#if 0   // ==== ADC ====
+#if 1   // ==== ADC ====
         if(EvtMsk & EVTMSK_SAMPLING) OnAdcSamplingTime();
-        if(EvtMsk & EVTMSK_ADC_DONE) OnAdcDone();
+        if(EvtMsk & EVTMSK_ADC_DONE) OnAdcDone(lhpDoNotHide);
 #endif
     } // while true
 }
@@ -175,11 +186,11 @@ void App_t::ITask() {
 void App_t::OnAdcSamplingTime() {
     Adc.EnableVRef();
     PinClear(BAT_SW_GPIO, BAT_SW_PIN);  // Connect R divider to GND
-    chThdSleepMicroseconds(450);
+    chThdSleepMicroseconds(99);
     Adc.StartMeasurement();
 }
 
-void App_t::OnAdcDone() {
+void App_t::OnAdcDone(LcdHideProcess_t Hide) {
     PinSet(BAT_SW_GPIO, BAT_SW_PIN);    // Disconnect R divider to GND
     Adc.DisableVRef();
     uint32_t BatAdc = 2 * Adc.GetResult(BAT_CHNL); // to count R divider
@@ -190,13 +201,14 @@ void App_t::OnAdcDone() {
 
     // If not charging: if voltage is too low - display discharged battery and shutdown
     if(!IsCharging() and (BatVoltage < BAT_ZERO_mV)) {
+        Uart.Printf("LowBat\r");
         Lcd.DrawBattery(NewBatPercent, bstDischarging, lhpHide);
         chThdSleepMilliseconds(1800);
         Shutdown();
     } // if not charging
-    // Redraw battery charge
+    // Redraw battery charge if displaying battery now
     if(IsDisplayingBattery and NewBatPercent != BatteryPercent) { // Redraw if changed
-        Lcd.DrawBattery(NewBatPercent, (IsCharging()? bstCharging : bstDischarging), lhpDoNotHide);
+        Lcd.DrawBattery(NewBatPercent, (IsCharging()? bstCharging : bstDischarging), Hide);
     }
     BatteryPercent = NewBatPercent;
 }

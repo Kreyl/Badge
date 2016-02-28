@@ -9,7 +9,7 @@
 #include "uart.h"
 
 uint8_t MSDRead(uint32_t BlockAddress, uint8_t *Ptr, uint32_t BlocksCnt) {
-    //Uart.Printf("R Addr: %u; Cnt: %u\r", BlockAddress, BlocksCnt);
+//    Uart.Printf("R Addr: %u; Cnt: %u\r", BlockAddress, BlocksCnt);
     Mem.Read(BlockAddress * MSD_BLOCK_SZ, Ptr, BlocksCnt * MSD_BLOCK_SZ);
     return OK;
 }
