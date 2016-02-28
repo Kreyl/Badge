@@ -33,13 +33,13 @@ void MemDmaEndIrq(void *p, uint32_t flags) {
 
 void FlashW25Q64_t::Init() {
     // GPIO
-    PinSetupOut(MEM_GPIO, MEM_CS, omPushPull);
-    PinSetupOut(MEM_GPIO, MEM_WP, omPushPull);
-    PinSetupOut(MEM_GPIO, MEM_HOLD, omPushPull);
-    PinSetupOut(MEM_PWR_GPIO, MEM_PWR, omPushPull);
-    PinSetupAlterFunc(MEM_GPIO, MEM_CLK,  omPushPull, pudNone, MEM_SPI_AF);
-    PinSetupAlterFunc(MEM_GPIO, MEM_DO, omPushPull, pudNone,   MEM_SPI_AF);
-    PinSetupAlterFunc(MEM_GPIO, MEM_DI, omPushPull, pudNone,   MEM_SPI_AF);
+    PinSetupOut(MEM_GPIO, MEM_CS, omPushPull, pudNone, psHigh);
+    PinSetupOut(MEM_GPIO, MEM_WP, omPushPull, pudNone, psHigh);
+    PinSetupOut(MEM_GPIO, MEM_HOLD, omPushPull, pudNone, psHigh);
+    PinSetupOut(MEM_PWR_GPIO, MEM_PWR, omPushPull, pudNone, psHigh);
+    PinSetupAlterFunc(MEM_GPIO, MEM_CLK, omPushPull, pudNone, MEM_SPI_AF, psHigh);
+    PinSetupAlterFunc(MEM_GPIO, MEM_DO,  omPushPull, pudNone, MEM_SPI_AF, psHigh);
+    PinSetupAlterFunc(MEM_GPIO, MEM_DI,  omPushPull, pudNone, MEM_SPI_AF, psHigh);
     // ==== SPI ====    MSB first, master, ClkLowIdle, FirstEdge, Baudrate=f/2
     ISpi.Setup(MEM_SPI, boMSB, cpolIdleLow, cphaFirstEdge, sbFdiv2);
     ISpi.Enable();

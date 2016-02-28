@@ -136,6 +136,12 @@
 // ==== Memory ====
 #define SPI1_DMA_RX     STM32_DMA1_STREAM2
 
+#define MEMCPY_DMA      STM32_DMA1_STREAM3
+#define MEM_CPY_DMA_MODE STM32_DMA_CR_CHSEL(0) |    /* dummy */ \
+                        STM32_DMA_CR_PL(0b10) |     /* DMA_PRIORITY_HIGH */ \
+                        STM32_DMA_CR_MSIZE_BYTE | \
+                        STM32_DMA_CR_PSIZE_BYTE
+
 #if ADC_REQUIRED
 /* DMA request mapped on this DMA channel only if the corresponding remapping bit is cleared in the SYSCFG_CFGR1
  * register. For more details, please refer to Section10.1.1: SYSCFG configuration register 1 (SYSCFG_CFGR1) on

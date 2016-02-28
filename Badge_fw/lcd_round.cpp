@@ -69,15 +69,18 @@ const RegData_t InitData[] = {
 #define INIT_SEQ_CNT    countof(InitData)
 
 #if 1 // ==== Pin driving functions ====
-#define RstHi() { PinSet(LCD_GPIO, LCD_RST);   }
-#define RstLo() { PinClear(LCD_GPIO, LCD_RST); }
-#define CsHi()  { PinSet(LCD_GPIO, LCD_CS);    }
-#define CsLo()  { PinClear(LCD_GPIO, LCD_CS);  }
-#define RsHi()  { PinSet(LCD_GPIO, LCD_RS);    }
-#define RsLo()  { PinClear(LCD_GPIO, LCD_RS);  }
-#define WrHi()  { PinSet(LCD_GPIO, LCD_WR);    }
-#define RdHi()  { PinSet(LCD_GPIO, LCD_RD);    }
-#define RdLo()  { PinClear(LCD_GPIO, LCD_RD);  }
+#define RstHi()  { PinSet(LCD_GPIO, LCD_RST);   }
+#define RstLo()  { PinClear(LCD_GPIO, LCD_RST); }
+#define CsHi()   { PinSet(LCD_GPIO, LCD_CS);    }
+#define CsLo()   { PinClear(LCD_GPIO, LCD_CS);  }
+#define RsHi()   { PinSet(LCD_GPIO, LCD_RS);    }
+#define RsLo()   { PinClear(LCD_GPIO, LCD_RS);  }
+#define WrHi()   { PinSet(LCD_GPIO, LCD_WR);    }
+#define WrLo()   { PinClear(LCD_GPIO, LCD_WR);  }
+#define RdHi()   { PinSet(LCD_GPIO, LCD_RD);    }
+#define RdLo()   { PinClear(LCD_GPIO, LCD_RD);  }
+#define PwrOn()  { PinSet(LCD_GPIO, LCD_PWR);   }
+#define PwrOff() { PinClear(LCD_GPIO, LCD_PWR); }
 
 #define SetReadMode()   LCD_GPIO->MODER &= LCD_MODE_MSK_READ
 #define SetWriteMode()  LCD_GPIO->MODER |= LCD_MODE_MSK_WRITE
@@ -116,8 +119,7 @@ void Lcd_t::Init() {
     PinSetupOut(LCD_GPIO, LCD_WR,  omPushPull, pudNone, psMedium);
     PinSetupOut(LCD_GPIO, LCD_RD,  omPushPull, pudNone, psMedium);
     PinSetupOut(LCD_GPIO, LCD_PWR, omPushPull, pudNone, psMedium);
-    // Power on
-    PinSet(LCD_GPIO, LCD_PWR);
+    PwrOn();
     chThdSleepMilliseconds(270);
 
     // Configure data bus as outputs
@@ -158,14 +160,12 @@ void Lcd_t::Init() {
 void Lcd_t::Shutdown(void) {
     Led1.Deinit();
     Led2.Deinit();
-    WriteReg(0x07, 0x0072);
-    chThdSleepMicroseconds(450);
-    WriteReg(0x07, 0x0001);
-    chThdSleepMicroseconds(450);
-    WriteReg(0x07, 0x0000);
-    chThdSleepMicroseconds(450);
-    WriteReg(0x12, 0);  // PON=0, PSON=0
-    WriteReg(0x10, 0x0004);  // enter deepsleep
+    RstLo();
+    CsLo();
+    RsLo();
+    RdLo();
+    WrLo();
+    PwrOff();
 }
 
 void Lcd_t::SetBrightness(uint16_t ABrightness) {
@@ -292,8 +292,8 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     BmpHeader_t *PHdr;
     if(TryOpenFileRead(Filename, PFile) != OK) return;
     // Switch off backlight to save power
-//    Led1.Set(0);
-//    Led2.Set(0);
+    Led1.Set(0);
+    Led2.Set(0);
 
     Clk.SwitchToHsi48();    // Increase MCU freq
     uint32_t tics = TIM2->CNT;

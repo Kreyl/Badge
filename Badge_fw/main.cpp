@@ -25,8 +25,6 @@ TmrKL_t TmrMeasurement;
 // Extension of graphic files to search
 const char Extension[] = "*.bmp";
 
-//static uint8_t Buf[64];
-
 #define AHB_DIVIDER ahbDiv8
 
 int main(void) {
@@ -45,61 +43,44 @@ int main(void) {
     Uart.Printf("\r%S %S\r", APP_NAME, BUILD_TIME);
     Clk.PrintFreqs();
 
-//    RLE_Decoder_t Dec;
-//    Dec.Init((uint8_t*)PicBattery);
-//
-//    for(uint32_t i=1; i<=1000; i++) {
-//        Uart.Printf("%02X ", Dec.GetNext());
-//        if(i % 10 == 0) Uart.Printf("\r");
-//    }
-
-
-
     // Battery: ADC and charging
-//    Adc.Init();
-//    PinSetupAnalog(BAT_MEAS_GPIO, BAT_MEAS_PIN);
-//    PinSetupOut(BAT_SW_GPIO, BAT_SW_PIN, omOpenDrain, pudNone);
-//    PinSet(BAT_SW_GPIO, BAT_SW_PIN);
-//    PinSetupIn(BAT_CHARGE_GPIO, BAT_CHARGE_PIN, pudPullUp);
-//
-    Lcd.Init();
-//    Lcd.SetBrightness(20);
-//
-//    // Measure battery prior to any operation
-//    App.OnAdcSamplingTime();
-//    chEvtWaitAny(EVTMSK_ADC_DONE);  // Wait AdcDone
-//    // Discard first measurement and restart measurement
-//    App.OnAdcSamplingTime();
-//    chEvtWaitAny(EVTMSK_ADC_DONE);      // Wait AdcDone
-//    App.IsDisplayingBattery = true;     // Do not draw battery now
-//    App.OnAdcDone(lhpHide);             // Will draw battery and shutdown if discharged
-//    // Will proceed with init if not shutdown
-    Lcd.SetBrightness(100);
+    Adc.Init();
+    PinSetupAnalog(BAT_MEAS_GPIO, BAT_MEAS_PIN);
+    PinSetupOut(BAT_SW_GPIO, BAT_SW_PIN, omOpenDrain, pudNone);
+    PinSet(BAT_SW_GPIO, BAT_SW_PIN);
+    PinSetupIn(BAT_CHARGE_GPIO, BAT_CHARGE_PIN, pudPullUp);
 
-    //Lcd.DrawBattery(50, bstCharging, lhpHide);
-    Lcd.DrawNoImage();
+    Lcd.Init();
+    Lcd.SetBrightness(20);
+
+    // Measure battery prior to any operation
+    App.OnAdcSamplingTime();
+    chEvtWaitAny(EVTMSK_ADC_DONE);  // Wait AdcDone
+    // Discard first measurement and restart measurement
+    App.OnAdcSamplingTime();
+    chEvtWaitAny(EVTMSK_ADC_DONE);      // Wait AdcDone
+    App.IsDisplayingBattery = true;     // Do not draw battery now
+    App.OnAdcDone(lhpHide);             // Will draw battery and shutdown if discharged
+    // Will proceed with init if not shutdown
+    Lcd.SetBrightness(100);
 
     Mem.Init();
 
-//    Mem.Read(0, Buf, 32);
-//    Uart.Printf("%A\r", Buf, 32, ' ');
-//    uint8_t r = Mem.EraseAndWriteSector4k(0, (uint8_t*)0);
-//    Uart.Printf("r=%u\r", r);
-//    Mem.Read(0, Buf, 32);
-//    Uart.Printf("%A\r", Buf, 32, ' ');
-
-//    UsbMsd.Init();
+    UsbMsd.Init();
 
     // ==== FAT init ====
+    // MemCpy DMA
+    dmaStreamAllocate(STM32_DMA1_STREAM3, IRQ_PRIO_LOW, NULL, NULL);
+
 //    if(TryInitFS() == OK) App.DrawNextBmp();
 
-//    PinSensors.Init();
-//    TmrMeasurement.InitAndStart(chThdGetSelfX(), MS2ST(MEASUREMENT_PERIOD_MS), EVTMSK_SAMPLING, tktPeriodic);
+    PinSensors.Init();
+    TmrMeasurement.InitAndStart(chThdGetSelfX(), MS2ST(MEASUREMENT_PERIOD_MS), EVTMSK_SAMPLING, tktPeriodic);
     // Main cycle
     App.ITask();
 }
 
-__attribute__ ((__noreturn__))
+__noreturn
 void App_t::ITask() {
     while(true) {
         __unused uint32_t EvtMsk = chEvtWaitAny(ALL_EVENTS);
@@ -150,7 +131,7 @@ void App_t::ITask() {
             Uart.Printf("UsbReady\r");
         }
 #endif
-#if 0 // ==== Button ====
+#if 1 // ==== Button ====
         if(EvtMsk & EVTMSK_BUTTONS) {
             BtnEvtInfo_t EInfo;
             while(BtnGetEvt(&EInfo) == OK) {

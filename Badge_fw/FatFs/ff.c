@@ -503,22 +503,30 @@ static const BYTE ExCvt[] = _EXCVT;	/* Upper conversion table for SBCS extended 
 /*-----------------------------------------------------------------------*/
 /* String functions                                                      */
 /*-----------------------------------------------------------------------*/
+#include "hal.h"
+#include "board.h"
 
 /* Copy memory to memory */
 static
 void mem_cpy (void* dst, const void* src, UINT cnt) {
-	BYTE *d = (BYTE*)dst;
-	const BYTE *s = (const BYTE*)src;
+    // @KL All replaced with DMA copy
+    dmaStartMemCopy(STM32_DMA1_STREAM3, MEM_CPY_DMA_MODE, src, dst, cnt);
+    dmaWaitCompletion(STM32_DMA1_STREAM3);
 
-#if _WORD_ACCESS == 1
-	while (cnt >= sizeof (int)) {
-		*(int*)d = *(int*)s;
-		d += sizeof (int); s += sizeof (int);
-		cnt -= sizeof (int);
-	}
-#endif
-	while (cnt--)
-		*d++ = *s++;
+//    memcpy(dst, src, cnt);
+    // @KL All replaced with memcpy
+//	BYTE *d = (BYTE*)dst;
+//	const BYTE *s = (const BYTE*)src;
+//
+//#if _WORD_ACCESS == 1
+//	while (cnt >= sizeof (int)) {
+//		*(int*)d = *(int*)s;
+//		d += sizeof (int); s += sizeof (int);
+//		cnt -= sizeof (int);
+//	}
+//#endif
+//	while (cnt--)
+//		*d++ = *s++;
 }
 
 /* Fill memory */
