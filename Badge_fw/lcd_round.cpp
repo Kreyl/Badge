@@ -327,7 +327,8 @@ void WriteLine1(uint8_t *PBuf, int32_t Width) {
         for(uint32_t k=0; k<8; k++) {
             PutTablePixel(Indx & 0x80 ? 1 : 0);
             Indx <<= 1;
-            if(++Cnt >= Width) return;
+            Cnt++;
+            if(Cnt >= Width or Cnt >= LCD_W) return;
         }
     } // while(true)
 }
@@ -338,16 +339,18 @@ void WriteLine4(uint8_t *PBuf, int32_t Width) {
     while(true) {
         uint8_t Indx = *PBuf++;
         PutTablePixel((Indx >> 4) & 0x0F);
-        if(++Cnt >= Width) return;
+        Cnt++;
+        if(Cnt >= Width or Cnt >= LCD_W) break;
         PutTablePixel(Indx & 0x0F);
-        if(++Cnt >= Width) return;
+        Cnt++;
+        if(Cnt >= Width or Cnt >= LCD_W) break;
     } // while(true)
 }
 
 __ramfunc
 void WriteLine8(uint8_t *PBuf, int32_t Width) {
     int32_t Cnt = 0;
-    while(Cnt < Width) {
+    while(Cnt < Width and Cnt < LCD_W) {
         uint8_t Indx = *PBuf++;
         PutTablePixel(Indx);
         Cnt++;
@@ -412,6 +415,7 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     // Check row order
     if(Height < 0) Height = -Height; // Top to bottom, normal order. Just remove sign.
     else SetDirHOrigBottomLeft();    // Bottom to top, set origin to bottom
+    TRIM_VALUE(Height, LCD_H);
 
     // ==== Color table ====
     if(PInfo->ClrUsed == 0) {
@@ -434,7 +438,7 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     // Move file cursor to pixel data
     if(f_lseek(PFile, FOffset) != FR_OK) goto end;
     // Setup window
-    SetBounds(x0, Width, y0, Height);
+    SetBounds(x0, MIN(Width, LCD_W), y0, Height);
     PrepareToWriteGRAM();
 
     // Select method of drawing depending on bits per pixel
