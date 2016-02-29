@@ -413,7 +413,7 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     // ==== BITMAPFILEHEADER ====
     if(f_read(PFile, IBuf, BMP_HDR_SZ, &RCnt) != FR_OK) goto end;
     PHdr = (BmpHeader_t*)IBuf;
-    Uart.Printf("T=%X; Sz=%u; Off=%u\r", PHdr->bfType, PHdr->bfSize, PHdr->bfOffBits);
+//    Uart.Printf("T=%X; Sz=%u; Off=%u\r", PHdr->bfType, PHdr->bfSize, PHdr->bfOffBits);
     if(PHdr->bfType != 0x4D42) goto end;    // Wrong file type
     FOffset = PHdr->bfOffBits;
 
@@ -452,13 +452,14 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     // Move file cursor to pixel data
     if(f_lseek(PFile, FOffset) != FR_OK) goto end;
     // Setup window
+    if(Width < LCD_W) x0 = (LCD_W - Width) / 2;     // }
+    if(Height < LCD_W) y0 = (LCD_H - Height) / 2;   // } Put image to center
     SetBounds(x0, MIN(Width, LCD_W), y0, Height);
     PrepareToWriteGRAM();
 
-    // Draw pic line by line
+    // ==== Draw pic line by line ====
     LineSz = (((Width * BitCnt) / 8) + 3) & ~3;
     if(LineSz > BUF_SZ) goto end;
-
     for(int32_t i=0; i<Height; i++) {
         if(f_read(PFile, IBuf, LineSz, &RCnt) != FR_OK) goto end;
         // Select method of drawing depending on bits per pixel
