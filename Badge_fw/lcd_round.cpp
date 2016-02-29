@@ -286,24 +286,16 @@ void Lcd_t::PutBitmap(uint16_t x0, uint16_t y0, uint16_t Width, uint16_t Height,
 
 #if 1 // ============================= BMP =====================================
 // Length of next structure BmpInfo added to optimize reading
-struct BmpHeader_BmpInfoSz_t {
+struct BmpHeader_t {
     uint16_t bfType;
     uint32_t bfSize;
     uint16_t Reserved[2];
     uint32_t bfOffBits;
-    // First field of next structure
-    uint32_t BmpInfoSz;
 } __packed;
+#define BMP_HDR_SZ      sizeof(BmpHeader_t)     // 14
 
-// Different info headers. Size absent as it included in previous structure.
-struct BmpInfoHdrCore_t {
-    uint16_t Width;
-    uint16_t Height;
-    uint16_t Planes;
-    uint16_t BitCnt;
-};
-
-struct BmpInfo_t {  // Length is absent as read first
+struct BmpInfo_t {
+    uint32_t BmpInfoSz;
     int32_t Width;
     int32_t Height;
     uint16_t Planes;
@@ -312,7 +304,7 @@ struct BmpInfo_t {  // Length is absent as read first
     uint32_t SzImage;
     int32_t XPelsPerMeter, YPelsPerMeter;
     uint32_t ClrUsed, ClrImportant;
-    // v4 begins. Only Adobe version here
+    // End of Bmp info min
     uint32_t RedMsk, GreenMsk, BlueMsk, AlphaMsk;
     uint32_t CsType;
     uint32_t Endpoints[9];
@@ -320,12 +312,48 @@ struct BmpInfo_t {  // Length is absent as read first
     uint32_t GammaGreen;
     uint32_t GammaBlue;
 } __packed;
+#define BMP_INFO_SZ         sizeof(BmpInfo_t)
+#define BMP_MIN_INFO_SZ     40
 
+// Color table
+struct BGR_t {
+    uint8_t B, G, R, A;
+} __packed;
+
+static BGR_t ColorTable[256];
+
+__ramfunc
+void WriteLine1(uint8_t *PBuf, int32_t Width) {
+    int32_t Cnt = 0;
+    while(true) {
+        uint8_t Indx = *PBuf++;
+        uint8_t R, G, B;
+        for(uint32_t k=0; k<8; k++) {
+            R = ColorTable[Indx & 0x80 ? 1 : 0].R;
+            G = ColorTable[Indx & 0x80 ? 1 : 0].G;
+            B = ColorTable[Indx & 0x80 ? 1 : 0].B;
+            Indx <<= 1;
+            uint32_t b;
+            // High byte
+            b = R & 0b11111000;
+            b |= G >> 5;
+            WriteByte(b);
+            // Low byte
+            b = (G << 3) & 0b11100000;
+            b |= B >> 3;
+            WriteByte(b);
+            Cnt++;
+            if(Cnt >= Width) return;
+        }
+    } // while(true)
+}
 
 void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile) {
 //    Uart.Printf("Draw %S\r", Filename);
-    uint32_t RCnt=0, Sz, FOffset;
-    BmpHeader_BmpInfoSz_t *PHdr;
+    uint32_t RCnt=0, Sz, FOffset, ColorTableSize = 0;
+    int32_t Width, Height;
+    BmpHeader_t *PHdr;
+    BmpInfo_t *PInfo;
     if(TryOpenFileRead(Filename, PFile) != OK) return;
     // Switch off backlight to save power
     Led1.Set(0);
@@ -340,72 +368,94 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
         goto end;
     }
 
-    // ==== Read BITMAPFILEHEADER ====
-    if(f_read(PFile, IBuf, sizeof(BmpHeader_BmpInfoSz_t), &RCnt) != FR_OK) goto end;
-    PHdr = (BmpHeader_BmpInfoSz_t*)IBuf;
-    Uart.Printf("T=%X; Sz=%u; Off=%u;  BmpInfoSz=%u\r", PHdr->bfType, PHdr->bfSize, PHdr->bfOffBits, PHdr->BmpInfoSz);
+    // ==== BITMAPFILEHEADER ====
+    if(f_read(PFile, IBuf, BMP_HDR_SZ, &RCnt) != FR_OK) goto end;
+    PHdr = (BmpHeader_t*)IBuf;
+    Uart.Printf("T=%X; Sz=%u; Off=%u\r", PHdr->bfType, PHdr->bfSize, PHdr->bfOffBits);
     if(PHdr->bfType != 0x4D42) goto end;    // Wrong file type
     FOffset = PHdr->bfOffBits;
 
-    // ==== Read BITMAPINFO ====
-    // Struct size => version
-    Sz = PHdr->BmpInfoSz;
-    if(Sz == 12) {  // Core header
-        goto end;   // not supported
+    // ==== BITMAPINFO ====
+    if(f_read(PFile, IBuf, BMP_MIN_INFO_SZ, &RCnt) != FR_OK) goto end;
+    PInfo = (BmpInfo_t*)IBuf;
+    Uart.Printf("BmpInfoSz=%u; W=%d; H=%d; BitCnt=%u; Cmp=%u; Sz=%u;  ColorsInTbl=%u\r", PInfo->BmpInfoSz,
+            PInfo->Width, PInfo->Height, PInfo->BitCnt, PInfo->Compression, PInfo->SzImage, PInfo->ClrUsed);
+    Sz = PInfo->SzImage;
+    Width = PInfo->Width;
+    Height = PInfo->Height;
+
+    // Check row order
+    if(Height < 0) Height = -Height; // Top to bottom, normal order. Just remove sign.
+    else SetDirHOrigBottomLeft();    // Bottom to top, set origin to bottom
+
+    // ==== Color table ====
+    if(PInfo->ClrUsed == 0) {
+        if     (PInfo->BitCnt == 1) ColorTableSize = 2;
+        else if(PInfo->BitCnt == 4) ColorTableSize = 16;
+        else if(PInfo->BitCnt == 8) ColorTableSize = 256;
     }
-    else {  // InfoHdr V1, V2, V3, V4 or V5
-        // Read Info
-        if(f_read(PFile, IBuf, Sz-4, &RCnt) != FR_OK) goto end;
-        BmpInfo_t *PInfo = (BmpInfo_t*)IBuf;
-        Uart.Printf("W=%d; H=%d; BitCnt=%u; Cmp=%u; Sz=%u;  MskR=%X; MskG=%X; MskB=%X; MskA=%X\r",
-                PInfo->Width, PInfo->Height, PInfo->BitCnt, PInfo->Compression,
-                PInfo->SzImage, PInfo->RedMsk, PInfo->GreenMsk, PInfo->BlueMsk, PInfo->AlphaMsk);
-//        if(PInfo->Compression != 0
-        Sz = PInfo->SzImage;
-        int32_t Width = PInfo->Width;
-        int32_t Height = PInfo->Height;
-
-        // Check row order
-        if(Height < 0) { // Top to bottom, normal order. Just remove sign.
-            Height = -Height;
+    else ColorTableSize = PInfo->ClrUsed;
+    if(ColorTableSize > 256) goto end;
+    if(ColorTableSize != 0) {
+        // Move file cursor to color table data if needed
+        if(PInfo->BmpInfoSz != BMP_MIN_INFO_SZ) {
+            uint32_t ClrTblOffset = BMP_HDR_SZ + PInfo->BmpInfoSz;
+            if(f_lseek(PFile, ClrTblOffset) != FR_OK) goto end;
         }
-        else SetDirHOrigBottomLeft(); // Bottom to top, set origin to bottom
+        // Read color table
+        if(f_read(PFile, ColorTable, (ColorTableSize * 4), &RCnt) != FR_OK) goto end;
+    }
 
-        // Move file cursor to pixel data
-        if(f_lseek(PFile, FOffset) != FR_OK) goto end;
+    // Move file cursor to pixel data
+    if(f_lseek(PFile, FOffset) != FR_OK) goto end;
+    // Setup window
+    SetBounds(x0, Width, y0, Height);
 
-        // Setup window
-        SetBounds(x0, Width, y0, Height);
-
-        // ==== Write RAM ====
-        PrepareToWriteGRAM();
-        // Select method of drawing depending on bits per pixel
-        if(PInfo->BitCnt == 16) {
-            while(Sz) {
-                if(f_read(PFile, IBuf, BUF_SZ, &RCnt) != FR_OK) goto end;
-                WriteBuf16(IBuf, RCnt);
-                Sz -= RCnt;
-            } // while Sz
-        }
-        else if(PInfo->BitCnt == 24) {
-            uint32_t LineWidth = ((Width * 3) + 3) & ~3;
-            if(LineWidth > BUF_SZ) goto end;
-            for(int32_t i=0; i<Height; i++) {
-                if(f_read(PFile, IBuf, LineWidth, &RCnt) != FR_OK) goto end;
-                WriteLine24(IBuf, Width);
-            } // for i
-        }
-        else if(PInfo->BitCnt == 32) {
-            while(Sz) {
-                if(f_read(PFile, IBuf, BUF_SZ, &RCnt) != FR_OK) goto end;
-                WriteBuf32(IBuf, RCnt);
-                Sz -= RCnt;
+    // ==== Write RAM ====
+    PrepareToWriteGRAM();
+    // Select method of drawing depending on bits per pixel
+    if(PInfo->BitCnt == 1) {
+        int32_t LineSz = ((Width / 8) + 3) & ~3;
+        if(LineSz > BUF_SZ) goto end;
+        int32_t NLines = BUF_SZ / LineSz;
+        if(NLines > Height) NLines = Height;
+        int32_t N=0;
+        do {
+            if(f_read(PFile, IBuf, (LineSz * NLines), &RCnt) != FR_OK) goto end;
+            uint8_t *ptr = IBuf;
+            for(int32_t i=0; i<NLines; i++) {
+                WriteLine1(ptr, Width);
+                ptr += LineSz;
             }
+            N += NLines;
+            if((Height - N) < NLines) NLines = Height - N;
+        } while(N < Height);
+    }
+    else if(PInfo->BitCnt == 16) {
+        while(Sz) {
+            if(f_read(PFile, IBuf, BUF_SZ, &RCnt) != FR_OK) goto end;
+            WriteBuf16(IBuf, RCnt);
+            Sz -= RCnt;
+        } // while Sz
+    }
+    else if(PInfo->BitCnt == 24) {
+        uint32_t LineWidth = ((Width * 3) + 3) & ~3;
+        if(LineWidth > BUF_SZ) goto end;
+        for(int32_t i=0; i<Height; i++) {
+            if(f_read(PFile, IBuf, LineWidth, &RCnt) != FR_OK) goto end;
+            WriteLine24(IBuf, Width);
+        } // for i
+    }
+    else if(PInfo->BitCnt == 32) {
+        while(Sz) {
+            if(f_read(PFile, IBuf, BUF_SZ, &RCnt) != FR_OK) goto end;
+            WriteBuf32(IBuf, RCnt);
+            Sz -= RCnt;
         }
+    }
 
-        // Restore normal origin and direction
-        SetDirHOrigTopLeft();
-    } // if Sz
+    // Restore normal origin and direction
+    SetDirHOrigTopLeft();
 
     end:
     f_close(PFile);

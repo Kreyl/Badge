@@ -243,7 +243,7 @@ void App_t::DrawNextBmp() {
     } // findnext not succeded
     lbl_Found:
     Uart.PrintfNow("%S\r", FileInfo.fname);
-    Lcd.DrawBmpFile(50, 50, FileInfo.fname, &File);
+    Lcd.DrawBmpFile(0, 0, FileInfo.fname, &File);
 }
 
 // 5v Sns
