@@ -102,24 +102,6 @@ void WriteBuf16(uint8_t *PBuf, uint32_t Len) {
 }
 
 __ramfunc
-void WriteLine24(uint8_t *PBuf, int32_t Width) {
-    for(int32_t j=0; j<Width; j++) {
-        uint8_t B = *PBuf++;
-        uint8_t G = *PBuf++;
-        uint8_t R = *PBuf++;
-        uint32_t b;
-        // High byte
-        b = R & 0b11111000;
-        b |= G >> 5;
-        WriteByte(b);
-        // Low byte
-        b = (G << 3) & 0b11100000;
-        b |= B >> 3;
-        WriteByte(b);
-    } // for j
-}
-
-__ramfunc
 void WriteBuf32(uint8_t *PBuf, uint32_t Len) {
 //    for(uint32_t i=0; i<Len; i+=2) {
 //        WriteByte(PBuf[i+1]);
@@ -323,30 +305,73 @@ struct BGR_t {
 static BGR_t ColorTable[256];
 
 __ramfunc
+static inline void PutTablePixel(uint8_t id) {
+    uint8_t R = ColorTable[id].R;
+    uint8_t G = ColorTable[id].G;
+    uint8_t B = ColorTable[id].B;
+    // High byte
+    uint8_t byte = R & 0b11111000;
+    byte |= G >> 5;
+    WriteByte(byte);
+    // Low byte
+    byte = (G << 3) & 0b11100000;
+    byte |= B >> 3;
+    WriteByte(byte);
+}
+
+__ramfunc
 void WriteLine1(uint8_t *PBuf, int32_t Width) {
     int32_t Cnt = 0;
     while(true) {
         uint8_t Indx = *PBuf++;
-        uint8_t R, G, B;
         for(uint32_t k=0; k<8; k++) {
-            R = ColorTable[Indx & 0x80 ? 1 : 0].R;
-            G = ColorTable[Indx & 0x80 ? 1 : 0].G;
-            B = ColorTable[Indx & 0x80 ? 1 : 0].B;
+            PutTablePixel(Indx & 0x80 ? 1 : 0);
             Indx <<= 1;
-            uint32_t b;
-            // High byte
-            b = R & 0b11111000;
-            b |= G >> 5;
-            WriteByte(b);
-            // Low byte
-            b = (G << 3) & 0b11100000;
-            b |= B >> 3;
-            WriteByte(b);
-            Cnt++;
-            if(Cnt >= Width) return;
+            if(++Cnt >= Width) return;
         }
     } // while(true)
 }
+
+//__ramfunc
+void WriteLine4(uint8_t *PBuf, int32_t Width) {
+    int32_t Cnt = 0;
+    while(true) {
+        uint8_t Indx = *PBuf++;
+        PutTablePixel((Indx >> 4) & 0x0F);
+        if(++Cnt >= Width) return;
+        PutTablePixel(Indx & 0x0F);
+        if(++Cnt >= Width) return;
+    } // while(true)
+}
+
+__ramfunc
+void WriteLine8(uint8_t *PBuf, int32_t Width) {
+    int32_t Cnt = 0;
+    while(Cnt < Width) {
+        uint8_t Indx = *PBuf++;
+        PutTablePixel(Indx);
+        Cnt++;
+    } // while(true)
+}
+
+__ramfunc
+void WriteLine24(uint8_t *PBuf, int32_t Width) {
+    for(int32_t j=0; j<Width; j++) {
+        uint8_t B = *PBuf++;
+        uint8_t G = *PBuf++;
+        uint8_t R = *PBuf++;
+        uint32_t b;
+        // High byte
+        b = R & 0b11111000;
+        b |= G >> 5;
+        WriteByte(b);
+        // Low byte
+        b = (G << 3) & 0b11100000;
+        b |= B >> 3;
+        WriteByte(b);
+    } // for j
+}
+
 
 void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile) {
 //    Uart.Printf("Draw %S\r", Filename);
@@ -410,10 +435,10 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     if(f_lseek(PFile, FOffset) != FR_OK) goto end;
     // Setup window
     SetBounds(x0, Width, y0, Height);
-
-    // ==== Write RAM ====
     PrepareToWriteGRAM();
+
     // Select method of drawing depending on bits per pixel
+    // ==== BitCnt 1 ====
     if(PInfo->BitCnt == 1) {
         int32_t LineSz = ((Width / 8) + 3) & ~3;
         if(LineSz > BUF_SZ) goto end;
@@ -431,6 +456,34 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
             if((Height - N) < NLines) NLines = Height - N;
         } while(N < Height);
     }
+
+    // ==== BitCnt 4 ====
+    else if(PInfo->BitCnt == 4) {
+        int32_t LineSz = ((Width / 2) + 3) & ~3;
+        if(LineSz > BUF_SZ) goto end;
+//        Uart.Printf("LSz=%u\r", LineSz);
+        for(int32_t i=0; i<Height; i++) {
+            if(f_read(PFile, IBuf, LineSz, &RCnt) != FR_OK) goto end;
+//            Uart.Printf("%A\r\r", IBuf, LineSz, ' ');
+//            chThdSleepMilliseconds(36);
+            WriteLine4(IBuf, Width);
+        }
+    }
+
+    // ==== BitCnt 8 ====
+    else if(PInfo->BitCnt == 8) {
+        int32_t LineSz = (Width + 3) & ~3;
+        if(LineSz > BUF_SZ) goto end;
+//        Uart.Printf("LSz=%u\r", LineSz);
+        for(int32_t i=0; i<Height; i++) {
+            if(f_read(PFile, IBuf, LineSz, &RCnt) != FR_OK) goto end;
+//            Uart.Printf("%A\r\r", IBuf, LineSz, ' ');
+//            chThdSleepMilliseconds(36);
+            WriteLine8(IBuf, Width);
+        }
+    }
+
+    // ==== BitCnt 16 ====
     else if(PInfo->BitCnt == 16) {
         while(Sz) {
             if(f_read(PFile, IBuf, BUF_SZ, &RCnt) != FR_OK) goto end;
@@ -439,10 +492,10 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
         } // while Sz
     }
     else if(PInfo->BitCnt == 24) {
-        uint32_t LineWidth = ((Width * 3) + 3) & ~3;
-        if(LineWidth > BUF_SZ) goto end;
+        int32_t LineSz = ((Width * 3) + 3) & ~3;
+        if(LineSz > BUF_SZ) goto end;
         for(int32_t i=0; i<Height; i++) {
-            if(f_read(PFile, IBuf, LineWidth, &RCnt) != FR_OK) goto end;
+            if(f_read(PFile, IBuf, LineSz, &RCnt) != FR_OK) goto end;
             WriteLine24(IBuf, Width);
         } // for i
     }
