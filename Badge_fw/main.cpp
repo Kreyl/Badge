@@ -217,31 +217,47 @@ void App_t::OnCmd(Shell_t *PShell) {
 #endif
 
 void App_t::DrawNextBmp() {
-    uint8_t rslt = f_findnext(&Dir, &FileInfo);
-    if(rslt == FR_OK and FileInfo.fname[0]) goto lbl_Found;
-    else {  // Not found, or dir closed
-        // Display battery if not displayed yet
-        if(IsDisplayingBattery) {
-            IsDisplayingBattery = false;
-            // Reread dir
-            f_closedir(&Dir);
-            rslt = f_findfirst(&Dir, &FileInfo, "", Extension);
-            if(rslt == FR_OK and FileInfo.fname[0]) goto lbl_Found;
-            else {
-                Lcd.DrawNoImage();
-                Uart.Printf("Not found: %u\r", rslt);
+    uint8_t rslt;
+    bool WrapAround = false;
+    while(true) {
+        Uart.Printf("a\r");
+        rslt = f_findnext(&Dir, &FileInfo);
+        if(rslt == FR_OK and FileInfo.fname[0]) {   // File found
+            Uart.Printf("1> %S; attrib=%X\r", FileInfo.fname, FileInfo.fattrib);
+            if(FileInfo.fattrib & AM_HID) continue; // Ignore hidden files
+            else goto lbl_Found;                    // Correct file found
+        }
+        else { // Not found, or dir closed
+            Uart.Printf("b\r");
+            // Display battery if not displayed yet
+            if(IsDisplayingBattery) {
+                Uart.Printf("d\r");
                 f_closedir(&Dir);
-                FatFS.fs_type = 0;  // Unmount FS
+                if(WrapAround) {    // Dir does not contain good files
+                    Lcd.DrawNoImage();
+                    IsDisplayingBattery = false;
+                    return;
+                }
+                Uart.Printf("e\r");
+                // Reread dir
+                rslt = f_findfirst(&Dir, &FileInfo, "", Extension);
+                WrapAround = true;
+                if(rslt == FR_OK and FileInfo.fname[0]) {   // File found
+                    Uart.Printf("2> %S; attrib=%X\r", FileInfo.fname, FileInfo.fattrib);
+                    if(FileInfo.fattrib & AM_HID) continue; // Ignore hidden files
+                    else goto lbl_Found;                    // Correct file found
+                }
+            } // if(IsDisplayingBattery)
+            else {
+                Uart.Printf("c\r");
+                Lcd.DrawBattery(BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpHide);
+                IsDisplayingBattery = true;
                 return;
             }
-        }
-        else {
-            Lcd.DrawBattery(BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpHide);
-            IsDisplayingBattery = true;
-            return;
-        }
-    } // findnext not succeded
+        } // not found
+    } // while true
     lbl_Found:
+    IsDisplayingBattery = false;
     Uart.PrintfNow("%S\r", FileInfo.fname);
     Lcd.DrawBmpFile(0, 0, FileInfo.fname, &File);
 }
