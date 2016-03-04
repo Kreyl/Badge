@@ -129,7 +129,7 @@ void OnDataOutCompleted(USBDriver *usbp, usbep_t ep) {
 
 
 #if 1 // ========================== MSD Thread =================================
-static THD_WORKING_AREA(waUsbThd, 512);
+static THD_WORKING_AREA(waUsbThd, 128);
 static THD_FUNCTION(UsbThd, arg) {
     chRegSetThreadName("Usb");
     UsbMsd.Task();

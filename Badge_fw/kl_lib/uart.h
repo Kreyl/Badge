@@ -5,8 +5,7 @@
  *      Author: kreyl
  */
 
-#ifndef UART_H_
-#define UART_H_
+#pragma once
 
 #include "kl_lib.h"
 #include "kl_sprintf.h"
@@ -20,7 +19,7 @@
 #define UART_USE_DMA        TRUE
 
 // ==== TX ====
-#define UART_TXBUF_SZ       512
+#define UART_TXBUF_SZ       256
 
 #define UART_DMA_TX_MODE    STM32_DMA_CR_CHSEL(UART_DMA_CHNL) | \
                             DMA_PRIORITY_LOW | \
@@ -92,5 +91,3 @@ public:
 };
 
 extern Uart_t Uart;
-
-#endif /* UART_H_ */

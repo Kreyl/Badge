@@ -14,11 +14,13 @@
 #include "buttons.h"
 #include "kl_adc.h"
 #include "battery_consts.h"
+#include "ImgList.h"
 
 #include "pics.h"
 
 App_t App;
 TmrKL_t TmrMeasurement;
+ImgList_t ImgList;
 
 #define IsCharging()    (!PinIsSet(BAT_CHARGE_GPIO, BAT_CHARGE_PIN))
 
@@ -69,10 +71,12 @@ int main(void) {
     UsbMsd.Init();
 
     // ==== FAT init ====
-    // MemCpy DMA
+    // DMA-based MemCpy init
     dmaStreamAllocate(STM32_DMA1_STREAM3, IRQ_PRIO_LOW, NULL, NULL);
-
-    if(TryInitFS() == OK) App.DrawNextBmp();
+    if(TryInitFS() == OK) {
+        //App.DrawNextBmp();
+        ImgList.TryToConfig("config.ini");
+    }
 
     PinSensors.Init();
     TmrMeasurement.InitAndStart(chThdGetSelfX(), MS2ST(MEASUREMENT_PERIOD_MS), EVTMSK_SAMPLING, tktPeriodic);
@@ -97,16 +101,16 @@ void App_t::ITask() {
             // Enable HSI48
             chSysLock();
             Clk.SetupBusDividers(ahbDiv2, apbDiv1);
-            uint8_t r = Clk.SwitchTo(csHSI48);
+            while(Clk.SwitchTo(csHSI48) != OK) {
+                Uart.PrintfI("Hsi48 Fail\r");
+                chThdSleepS(MS2ST(207));
+            }
             Clk.UpdateFreqValues();
             chSysUnlock();
             Clk.PrintFreqs();
-            if(r == OK) {
-                Clk.SelectUSBClock_HSI48();
-                Clk.EnableCRS();
-                UsbMsd.Connect();
-            }
-            else Uart.Printf("Hsi48 Fail\r");
+            Clk.SelectUSBClock_HSI48();
+            Clk.EnableCRS();
+            UsbMsd.Connect();
         }
 
         if(EvtMsk & EVTMSK_USB_DISCONNECTED) {
@@ -220,7 +224,6 @@ void App_t::DrawNextBmp() {
     uint8_t rslt;
     bool WrapAround = false;
     while(true) {
-        Uart.Printf("a\r");
         rslt = f_findnext(&Dir, &FileInfo);
         if(rslt == FR_OK and FileInfo.fname[0]) {   // File found
             Uart.Printf("1> %S; attrib=%X\r", FileInfo.fname, FileInfo.fattrib);
@@ -228,17 +231,14 @@ void App_t::DrawNextBmp() {
             else goto lbl_Found;                    // Correct file found
         }
         else { // Not found, or dir closed
-            Uart.Printf("b\r");
             // Display battery if not displayed yet
             if(IsDisplayingBattery) {
-                Uart.Printf("d\r");
                 f_closedir(&Dir);
                 if(WrapAround) {    // Dir does not contain good files
                     Lcd.DrawNoImage();
                     IsDisplayingBattery = false;
                     return;
                 }
-                Uart.Printf("e\r");
                 // Reread dir
                 rslt = f_findfirst(&Dir, &FileInfo, "", Extension);
                 WrapAround = true;
@@ -249,7 +249,6 @@ void App_t::DrawNextBmp() {
                 }
             } // if(IsDisplayingBattery)
             else {
-                Uart.Printf("c\r");
                 Lcd.DrawBattery(BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpHide);
                 IsDisplayingBattery = true;
                 return;

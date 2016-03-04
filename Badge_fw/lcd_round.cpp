@@ -8,8 +8,6 @@
 #include "pics.h"
 #include "kl_fs_common.h"
 
-#include "gif_decoder.h"
-
 //#include "lcdFont8x8.h"
 //#include <string.h>
 
@@ -157,7 +155,6 @@ void Lcd_t::Shutdown(void) {
 void Lcd_t::SetBrightness(uint16_t ABrightness) {
     Led1.Set(ABrightness);
     Led2.Set(ABrightness);
-    IBrightness = ABrightness;
 }
 
 #if 1 // ============================ Local use ================================
@@ -303,7 +300,7 @@ static inline void PutTablePixel(uint8_t id) {
     WriteByte(byte);
 }
 
-__ramfunc
+//__ramfunc
 void WriteLine1(uint8_t *PBuf, int32_t Width) {
     int32_t Cnt = 0, Top = MIN(Width, LCD_W);
     while(true) {
@@ -331,7 +328,7 @@ void WriteLine4(uint8_t *PBuf, int32_t Width) {
     } // while(true)
 }
 
-__ramfunc
+//__ramfunc
 void WriteLine8(uint8_t *PBuf, int32_t Width) {
     int32_t Cnt = 0, Top = MIN(Width, LCD_W);
     while(Cnt < Top) {
