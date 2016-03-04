@@ -93,9 +93,20 @@ void ImgList_t::Start() {
 
 void ImgList_t::OnTime() {
     Uart.Printf("OnTime %u %S\r", Current, Info[Current].Name);
-//    uint8_t Rslt = Lcd.DrawBmpFile(0,0, Info[Current].Name, &File);
-    Current++;
-    if(Current >= Count) Current = 0;
-    // Start timer if draw succeded
-//    if(Rslt == OK) chVTSet(&Tmr, MS2ST(Info[Current].TimeToShow), TmrImgCallback, nullptr);
+    uint8_t Overflows = 0;
+    while(true) {
+        uint8_t Rslt = Lcd.DrawBmpFile(0,0, Info[Current].Name, &File);
+        Current++;
+        if(Current >= Count) {
+            Current = 0;
+            Overflows++;
+        }
+        // Start timer if draw succeded
+        if(Rslt == OK) {
+            chVTSet(&Tmr, MS2ST(Info[Current].TimeToShow), TmrImgCallback, nullptr);
+            break;
+        }
+        // Get out if no success with all filenames
+        if(Overflows > 1) break;
+    }
 }

@@ -155,6 +155,7 @@ void Lcd_t::Shutdown(void) {
 void Lcd_t::SetBrightness(uint16_t ABrightness) {
     Led1.Set(ABrightness);
     Led2.Set(ABrightness);
+    IBrightness = ABrightness;
 }
 
 #if 1 // ============================ Local use ================================
@@ -387,25 +388,20 @@ void WriteLine32(uint8_t *PBuf, int32_t Width) {
     }
 }
 
-void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile) {
+uint8_t Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile) {
 //    Uart.Printf("Draw %S\r", Filename);
     uint32_t RCnt=0, FOffset, ColorTableSize = 0, BitCnt;
     int32_t Width, Height, LineSz;
     BmpHeader_t *PHdr;
     BmpInfo_t *PInfo;
-    if(TryOpenFileRead(Filename, PFile) != OK) return;
+    if(TryOpenFileRead(Filename, PFile) != OK) return FAILURE;
+    uint8_t Rslt = FAILURE;
     // Switch off backlight to save power
     Led1.Set(0);
     Led2.Set(0);
 
     Clk.SwitchToHsi48();    // Increase MCU freq
     uint32_t tics = TIM2->CNT;
-
-    // Check if zero file
-    if(PFile->fsize == 0) {
-        Uart.Printf("Empty file\r");
-        goto end;
-    }
 
     // ==== BITMAPFILEHEADER ====
     if(f_read(PFile, IBuf, BMP_HDR_SZ, &RCnt) != FR_OK) goto end;
@@ -417,8 +413,7 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
     // ==== BITMAPINFO ====
     if(f_read(PFile, IBuf, BMP_MIN_INFO_SZ, &RCnt) != FR_OK) goto end;
     PInfo = (BmpInfo_t*)IBuf;
-    Uart.Printf("BmpInfoSz=%u; W=%d; H=%d; BitCnt=%u; Cmp=%u; Sz=%u;  ColorsInTbl=%u\r", PInfo->BmpInfoSz,
-            PInfo->Width, PInfo->Height, PInfo->BitCnt, PInfo->Compression, PInfo->SzImage, PInfo->ClrUsed);
+//    Uart.Printf("BmpInfoSz=%u; W=%d; H=%d; BitCnt=%u; Cmp=%u; Sz=%u;  ColorsInTbl=%u\r", PInfo->BmpInfoSz, PInfo->Width, PInfo->Height, PInfo->BitCnt, PInfo->Compression, PInfo->SzImage, PInfo->ClrUsed);
     Width = PInfo->Width;
     Height = PInfo->Height;
     BitCnt = PInfo->BitCnt;
@@ -470,12 +465,11 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
             default: break;
         }
     } // for i
-
-    // Restore normal origin and direction
-    SetDirHOrigTopLeft();
+    Rslt = OK;
 
     end:
     f_close(PFile);
+    SetDirHOrigTopLeft();   // Restore normal origin and direction
 
     tics = TIM2->CNT - tics;
     // Switch back low freq
@@ -489,6 +483,7 @@ void Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile
 
     // Signal Draw Completed
     App.SignalEvt(EVTMSK_LCD_DRAW_DONE);
+    return Rslt;
 }
 #endif
 

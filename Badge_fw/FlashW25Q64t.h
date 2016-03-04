@@ -32,6 +32,7 @@
 class FlashW25Q64_t {
 private:
     Spi_t ISpi;
+    binary_semaphore_t BSemaphore;
     void WriteEnable();
     uint8_t BusyWait();
     uint8_t EraseSector4k(uint32_t Addr);

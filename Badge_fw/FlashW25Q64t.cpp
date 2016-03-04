@@ -40,12 +40,15 @@ void FlashW25Q64_t::Init() {
     PinSetupAlterFunc(MEM_GPIO, MEM_CLK, omPushPull, pudNone, MEM_SPI_AF, psHigh);
     PinSetupAlterFunc(MEM_GPIO, MEM_DO,  omPushPull, pudNone, MEM_SPI_AF, psHigh);
     PinSetupAlterFunc(MEM_GPIO, MEM_DI,  omPushPull, pudNone, MEM_SPI_AF, psHigh);
+
+    chBSemObjectInit(&BSemaphore, NOT_TAKEN);
     // ==== SPI ====    MSB first, master, ClkLowIdle, FirstEdge, Baudrate=f/2
     ISpi.Setup(MEM_SPI, boMSB, cpolIdleLow, cphaFirstEdge, sbFdiv2);
     ISpi.Enable();
     // DMA
     dmaStreamAllocate     (SPI1_DMA_RX, IRQ_PRIO_LOW, MemDmaEndIrq, NULL);
     dmaStreamSetPeripheral(SPI1_DMA_RX, &MEM_SPI->DR);
+
 
     PowerUp();
 }
@@ -93,6 +96,8 @@ void FlashW25Q64_t::PowerDown() {
 #if 1 // ========================= Exported methods ============================
 uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     chSysLock();
+    msg_t msg = chBSemWaitS(&BSemaphore);
+    if(msg != MSG_OK) return FAILURE;
     CsLo();
     // ==== Send Cmd & Addr ====
     ISendCmdAndAddr(0x03, Addr);    // Cmd Read
@@ -114,6 +119,7 @@ uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     ISpi.DisableRxDma();
     ISpi.Enable();
     ISpi.ClearRxBuf();
+    chBSemSignalI(&BSemaphore);
     chSysUnlock();
     return OK;
 }
@@ -121,6 +127,8 @@ uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
 // Len = MEM_SECTOR_SZ = 4096
 uint8_t FlashW25Q64_t::EraseAndWriteSector4k(uint32_t Addr, uint8_t *PBuf) {
     chSysLock();
+    msg_t msg = chBSemWaitS(&BSemaphore);
+    if(msg != MSG_OK) return FAILURE;
     WpHi();     // Write protect disable
     // First, erase sector
     uint8_t rslt = EraseSector4k(Addr);
@@ -144,6 +152,7 @@ uint8_t FlashW25Q64_t::EraseAndWriteSector4k(uint32_t Addr, uint8_t *PBuf) {
     } // for
     end:
     WpLo();     // Write protect enable
+    chBSemSignalI(&BSemaphore);
     chSysUnlock();
     return rslt;
 }
