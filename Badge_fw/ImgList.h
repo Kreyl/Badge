@@ -24,6 +24,7 @@ class ImgList_t {
 private:
     uint32_t Count, Current;
     ImgInfo_t Info[LIST_CNT];
+    uint16_t PrevFadeOut;
     virtual_timer_t Tmr;
 public:
     uint8_t TryToConfig(const char* Filename);

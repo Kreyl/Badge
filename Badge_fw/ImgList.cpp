@@ -88,25 +88,28 @@ void ImgList_t::Print() {
 void ImgList_t::Start() {
     if(Count == 0) return;
     Current = 0;
+    PrevFadeOut = 0;
     OnTime();
 }
 
 void ImgList_t::OnTime() {
-    Uart.Printf("OnTime %u %S\r", Current, Info[Current].Name);
-    uint8_t Overflows = 0;
-    while(true) {
-        uint8_t Rslt = Lcd.DrawBmpFile(0,0, Info[Current].Name, &File);
+    uint8_t Rslt = FAILURE, Overflows = 0;
+    do {
+        ImgInfo_t *p = &Info[Current];
+        Uart.Printf("OnTime %u %S t=%u\r", Current, p->Name, p->TimeToShow);
+        Rslt = Lcd.DrawBmpFile(0,0, p->Name, &File, p->FadeIn, PrevFadeOut);
+        chSysLock();
+        // Start timer if draw succeded
+        if(Rslt == OK) {
+            chVTSetI(&Tmr, MS2ST(p->TimeToShow), TmrImgCallback, nullptr);
+            PrevFadeOut = p->FadeOut;
+        }
+        // Goto next info
         Current++;
         if(Current >= Count) {
             Current = 0;
             Overflows++;
         }
-        // Start timer if draw succeded
-        if(Rslt == OK) {
-            chVTSet(&Tmr, MS2ST(Info[Current].TimeToShow), TmrImgCallback, nullptr);
-            break;
-        }
-        // Get out if no success with all filenames
-        if(Overflows > 1) break;
-    }
+        chSysUnlock();
+    } while(Overflows <= 1 and Rslt != OK); // Get out in case of success or if no success with all filenames
 }

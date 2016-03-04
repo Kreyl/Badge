@@ -72,7 +72,7 @@ public:
     void PutBitmap(uint16_t x0, uint16_t y0, uint16_t Width, uint16_t Height, uint16_t *PBuf);
 //    void DrawImage(const uint8_t x, const uint8_t y, const uint8_t *Img);
 //    void DrawSymbol(const uint8_t x, const uint8_t y, const uint8_t ACode);
-    uint8_t DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile);
+    uint8_t DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile, uint16_t FadeIn=0, uint16_t FadeOut=0);
     void DrawBattery(uint8_t Percent, BatteryState_t State, LcdHideProcess_t Hide);
     void DrawNoImage();
 };

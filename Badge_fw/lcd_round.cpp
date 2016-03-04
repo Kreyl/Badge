@@ -7,6 +7,7 @@
 #include "main.h"
 #include "pics.h"
 #include "kl_fs_common.h"
+#include "led.h"
 
 //#include "lcdFont8x8.h"
 //#include <string.h>
@@ -388,7 +389,7 @@ void WriteLine32(uint8_t *PBuf, int32_t Width) {
     }
 }
 
-uint8_t Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile) {
+uint8_t Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile, uint16_t FadeIn, uint16_t FadeOut) {
 //    Uart.Printf("Draw %S\r", Filename);
     uint32_t RCnt=0, FOffset, ColorTableSize = 0, BitCnt;
     int32_t Width, Height, LineSz;
@@ -396,9 +397,19 @@ uint8_t Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PF
     BmpInfo_t *PInfo;
     if(TryOpenFileRead(Filename, PFile) != OK) return FAILURE;
     uint8_t Rslt = FAILURE;
-    // Switch off backlight to save power
-    Led1.Set(0);
-    Led2.Set(0);
+    // Process backlight
+    if(FadeOut != 0) {
+        for(uint8_t i=IBrightness; i>0; i--) {
+            Led1.Set(i);
+            Led2.Set(i);
+            uint32_t Delay = ICalcDelay(i, FadeOut);
+            chThdSleepMilliseconds(Delay);
+        }
+    }
+    else {
+        Led1.Set(0);
+        Led2.Set(0);
+    }
 
     Clk.SwitchToHsi48();    // Increase MCU freq
     uint32_t tics = TIM2->CNT;
@@ -476,10 +487,20 @@ uint8_t Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PF
     Clk.SwitchToHsi();
 //    Clk.PrintFreqs();
 //    Uart.Printf("cr23=%X\r", RCC->CR2);
-    Uart.Printf("tics=%u\r", tics);
+//    Uart.Printf("tics=%u\r", tics);
     // Restore backlight
-    Led1.Set(IBrightness);
-    Led2.Set(IBrightness);
+    if(FadeIn != 0) {
+        for(uint8_t i=0; i<IBrightness; i++) {
+            Led1.Set(i);
+            Led2.Set(i);
+            uint32_t Delay = ICalcDelay(i, FadeIn);
+            chThdSleepMilliseconds(Delay);
+        }
+    }
+    else {
+        Led1.Set(IBrightness);
+        Led2.Set(IBrightness);
+    }
 
     // Signal Draw Completed
     App.SignalEvt(EVTMSK_LCD_DRAW_DONE);
