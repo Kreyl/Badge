@@ -74,8 +74,9 @@ int main(void) {
     // DMA-based MemCpy init
     dmaStreamAllocate(STM32_DMA1_STREAM3, IRQ_PRIO_LOW, NULL, NULL);
     if(TryInitFS() == OK) {
-        //App.DrawNextBmp();
-        ImgList.TryToConfig("config.ini");
+//        if(ImgList.TryToConfig("config.ini") == OK) ImgList.Start();
+//        else
+            App.DrawNextBmp();
     }
 
     PinSensors.Init();
@@ -164,6 +165,10 @@ void App_t::ITask() {
 #if 1   // ==== ADC ====
         if(EvtMsk & EVTMSK_SAMPLING) OnAdcSamplingTime();
         if(EvtMsk & EVTMSK_ADC_DONE) OnAdcDone(lhpDoNotHide);
+#endif
+
+#if 1 // ==== ImgList ====
+//        if(EvtMsk & EVTMSK_IMGLIST_TIME) ImgList.OnTime();
 #endif
     } // while true
 }

@@ -22,9 +22,13 @@ struct ImgInfo_t {
 
 class ImgList_t {
 private:
-    uint32_t Count;
+    uint32_t Count, Current;
     ImgInfo_t Info[LIST_CNT];
+    virtual_timer_t Tmr;
 public:
-    void TryToConfig(const char* Filename);
+    uint8_t TryToConfig(const char* Filename);
     void Print();
+    void Start();
+    void Stop();
+    void OnTime();
 };

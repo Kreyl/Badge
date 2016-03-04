@@ -9,6 +9,8 @@
 #include "kl_fs_common.h"
 #include "uart.h"
 #include <cstring>
+#include "lcd_round.h"
+#include "main.h"
 
 #define IMG_DELIMITERS      " :="
 
@@ -17,11 +19,17 @@ static inline char* skipleading(char *S) {
     return S;
 }
 
-void ImgList_t::TryToConfig(const char* Filename) {
+static void TmrImgCallback(void *p) {
+    chSysLockFromISR();
+    App.SignalEvtI(EVTMSK_IMGLIST_TIME);
+    chSysUnlockFromISR();
+}
+
+uint8_t ImgList_t::TryToConfig(const char* Filename) {
     // Emty list
     Count = 0;
     uint32_t Indx = 0;
-    if(TryOpenFileRead(Filename, &File) != OK) return;
+    if(TryOpenFileRead(Filename, &File) != OK) return FAILURE;
     char S[LINE_SZ];
     while(ReadLine(&File, S, LINE_SZ) == OK) {
         char* StartP = skipleading(S);     // Skip leading spaces
@@ -67,6 +75,7 @@ void ImgList_t::TryToConfig(const char* Filename) {
     end:
     f_close(&File);
     Print();
+    return (Count > 0)? OK : FAILURE;
 }
 
 void ImgList_t::Print() {
@@ -74,4 +83,19 @@ void ImgList_t::Print() {
     for(uint32_t i=0; i<Count; i++) {
         Uart.Printf("%S: Time=%u; FIn=%u; FOut=%u\r", Info[i].Name, Info[i].TimeToShow, Info[i].FadeIn, Info[i].FadeOut);
     }
+}
+
+void ImgList_t::Start() {
+    if(Count == 0) return;
+    Current = 0;
+    OnTime();
+}
+
+void ImgList_t::OnTime() {
+    Uart.Printf("OnTime %u %S\r", Current, Info[Current].Name);
+//    uint8_t Rslt = Lcd.DrawBmpFile(0,0, Info[Current].Name, &File);
+    Current++;
+    if(Current >= Count) Current = 0;
+    // Start timer if draw succeded
+//    if(Rslt == OK) chVTSet(&Tmr, MS2ST(Info[Current].TimeToShow), TmrImgCallback, nullptr);
 }
