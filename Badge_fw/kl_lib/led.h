@@ -42,13 +42,15 @@ public:
 #endif
 
 
-#if 0 // ======================== Single Led Smooth ============================
-#define LED_TOP_VALUE       255
-#define LED_INVERTED_PWM    invInverted
+#if 1 // ======================== Single Led Smooth ============================
+#define LED_TOP_VALUE       100
+#define LED_INVERTED_PWM    invNotInverted
+#define LED_OUT_TYPE        omPushPull
 
+// Example: LedSmooth_t Led({GPIOB, 15, TIM11, 1});
 class LedSmooth_t : public BaseSequencer_t<LedSmoothChunk_t> {
 private:
-    PinOutputPWM_t<LED_TOP_VALUE, LED_INVERTED_PWM> IChnl;
+    PinOutputPWM_t<LED_TOP_VALUE, LED_INVERTED_PWM, LED_OUT_TYPE> IChnl;
     uint8_t ICurrentBrightness;
     void ISwitchOff() { SetBrightness(0); }
     SequencerLoopTask_t ISetup() {
@@ -76,7 +78,7 @@ private:
         return sltProceed;
     }
 public:
-    LedSmooth_t(const PinOutputPWM_t<LED_TOP_VALUE, LED_INVERTED_PWM> AChnl) :
+    LedSmooth_t(const PinOutputPWM_t<LED_TOP_VALUE, LED_INVERTED_PWM, LED_OUT_TYPE> AChnl) :
         BaseSequencer_t(), IChnl(AChnl), ICurrentBrightness(0) {}
     void Init() {
         IChnl.Init();
