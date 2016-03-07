@@ -89,18 +89,20 @@ void ImgList_t::Start() {
     if(Count == 0) return;
     Current = 0;
     PrevFadeOut = 0;
+    IIsActive = true;
     OnTime();
 }
 
 void ImgList_t::Stop() {
     chVTReset(&Tmr);
+    IIsActive = false;
 }
 
 void ImgList_t::OnTime() {
     uint8_t Rslt = FAILURE, Overflows = 0;
     do {
         ImgInfo_t *p = &Info[Current];
-        Uart.Printf("OnTime %u %S t=%u\r", Current, p->Name, p->TimeToShow);
+//        Uart.Printf("OnTime %u %S t=%u\r", Current, p->Name, p->TimeToShow);
         Rslt = Lcd.DrawBmpFile(0,0, p->Name, &File, p->FadeIn, PrevFadeOut);
         chSysLock();
         // Start timer if draw succeded

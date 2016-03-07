@@ -26,9 +26,11 @@ private:
     ImgInfo_t Info[LIST_CNT];
     uint16_t PrevFadeOut;
     virtual_timer_t Tmr;
+    bool IIsActive;
 public:
     bool AutoChange = false;
     uint8_t TryToConfig(const char* Filename);
+    bool IsActive() { return IIsActive; }
     void Print();
     void Start();
     void Stop();
