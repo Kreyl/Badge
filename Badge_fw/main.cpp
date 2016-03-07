@@ -24,7 +24,7 @@ const char Extension[] = "*.bmp";
 
 int main(void) {
     // ==== Setup clock frequency ====
-//    Clk.EnablePrefetch();
+    Clk.EnablePrefetch();
     Clk.SetupBusDividers(AHB_DIVIDER, apbDiv1);
     Clk.UpdateFreqValues();
 

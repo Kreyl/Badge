@@ -40,7 +40,9 @@ uint8_t TryOpenFileRead(const char *Filename, FIL *PFile) {
         return OK;
     }
     else {
-        if (rslt == FR_NO_FILE) Uart.Printf("%S: not found\r", Filename);
+        if (rslt == FR_NO_FILE) {
+            //Uart.Printf("%S: not found\r", Filename);
+        }
         else Uart.Printf("OpenFile error: %u\r", rslt);
         return FAILURE;
     }
