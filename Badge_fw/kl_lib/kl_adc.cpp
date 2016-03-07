@@ -23,7 +23,7 @@ void AdcTxIrq(void *p, uint32_t flags) {
     Adc.Stop();
     // Signal event
     chSysLockFromISR();
-    App.SignalEvtI(EVTMSK_ADC_DONE);
+    App.SignalEvtI(EVT_ADC_DONE);
     chSysUnlockFromISR();
 }
 } // extern C

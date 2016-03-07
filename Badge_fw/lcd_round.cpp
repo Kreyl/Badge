@@ -399,11 +399,17 @@ uint8_t Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PF
     uint8_t Rslt = FAILURE;
     // Process backlight
     if(FadeOut != 0) {
-        for(uint8_t i=IBrightness; i>0; i--) {
+        for(int i=IBrightness; i>0; i--) {
             Led1.Set(i);
             Led2.Set(i);
             uint32_t Delay = ICalcDelay(i, FadeOut);
-            chThdSleepMilliseconds(Delay);
+            // Get out if button pressed
+            if(chEvtWaitAnyTimeout(EVT_BUTTONS, Delay) == EVT_BUTTONS) {
+                App.SignalEvt(EVT_BUTTONS); // Restore button event
+                Led1.Set(IBrightness);
+                Led2.Set(IBrightness);
+                return OK;
+            }
         }
     }
     else {
@@ -489,12 +495,18 @@ uint8_t Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PF
 //    Uart.Printf("cr23=%X\r", RCC->CR2);
 //    Uart.Printf("tics=%u\r", tics);
     // Restore backlight
-    if(FadeIn != 0) {
+    if(FadeIn != 0 and Rslt == OK) {
         for(uint8_t i=0; i<IBrightness; i++) {
             Led1.Set(i);
             Led2.Set(i);
             uint32_t Delay = ICalcDelay(i, FadeIn);
-            chThdSleepMilliseconds(Delay);
+            // Restore brightness immediately if button pressed
+            if(chEvtWaitAnyTimeout(EVT_BUTTONS, Delay) == EVT_BUTTONS) {
+                App.SignalEvt(EVT_BUTTONS); // Restore button event
+                Led1.Set(IBrightness);
+                Led2.Set(IBrightness);
+                break;
+            }
         }
     }
     else {
@@ -503,7 +515,7 @@ uint8_t Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PF
     }
 
     // Signal Draw Completed
-    App.SignalEvt(EVTMSK_LCD_DRAW_DONE);
+    App.SignalEvt(EVT_LCD_DRAW_DONE);
     return Rslt;
 }
 #endif

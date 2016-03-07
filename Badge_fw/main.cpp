@@ -1,12 +1,5 @@
-/*
- * main.cpp
- *
- *  Created on: 20 февр. 2014 г.
- *      Author: g.kruglov
- */
-
-#include <descriptors_msd.h>
-#include <usb_msd.h>
+#include "descriptors_msd.h"
+#include "usb_msd.h"
 #include "main.h"
 #include "SimpleSensors.h"
 #include "FlashW25Q64t.h"
@@ -57,10 +50,10 @@ int main(void) {
 
     // Measure battery prior to any operation
     App.OnAdcSamplingTime();
-    chEvtWaitAny(EVTMSK_ADC_DONE);  // Wait AdcDone
+    chEvtWaitAny(EVT_ADC_DONE);  // Wait AdcDone
     // Discard first measurement and restart measurement
     App.OnAdcSamplingTime();
-    chEvtWaitAny(EVTMSK_ADC_DONE);      // Wait AdcDone
+    chEvtWaitAny(EVT_ADC_DONE);      // Wait AdcDone
     App.IsDisplayingBattery = true;     // Do not draw battery now
     App.OnAdcDone(lhpHide);             // Will draw battery and shutdown if discharged
     // Will proceed with init if not shutdown
@@ -76,7 +69,7 @@ int main(void) {
 //    if(TryInitFS() == OK) App.DrawNextBmp();
 
     PinSensors.Init();
-    TmrMeasurement.InitAndStart(chThdGetSelfX(), MS2ST(MEASUREMENT_PERIOD_MS), EVTMSK_SAMPLING, tktPeriodic);
+    TmrMeasurement.InitAndStart(chThdGetSelfX(), MS2ST(MEASUREMENT_PERIOD_MS), EVT_SAMPLING, tktPeriodic);
     // Main cycle
     App.ITask();
 }
@@ -87,8 +80,8 @@ __noreturn
 void App_t::ITask() {
     while(true) {
         __unused uint32_t EvtMsk = chEvtWaitAny(ALL_EVENTS);
-#if 0 // ==== USB ====
-        if(EvtMsk & EVTMSK_USB_CONNECTED) {
+#if 1 // ==== USB ====
+        if(EvtMsk & EVT_USB_CONNECTED) {
             Uart.Printf("5v is here\r");
             chThdSleepMilliseconds(270);
             // Enable HSI48
@@ -106,7 +99,7 @@ void App_t::ITask() {
             UsbMsd.Connect();
         }
 
-        if(EvtMsk & EVTMSK_USB_DISCONNECTED) {
+        if(EvtMsk & EVT_USB_DISCONNECTED) {
             Uart.Printf("5v off\r");
             // Disable Usb & HSI48
             UsbMsd.Disconnect();
@@ -124,12 +117,12 @@ void App_t::ITask() {
             else Uart.Printf("Hsi Fail\r");
         }
 
-        if(EvtMsk & EVTMSK_USB_READY) {
+        if(EvtMsk & EVT_USB_READY) {
             Uart.Printf("UsbReady\r");
         }
 #endif
 #if 1 // ==== Button ====
-        if(EvtMsk & EVTMSK_BUTTONS) {
+        if(EvtMsk & EVT_BUTTONS) {
             BtnEvtInfo_t EInfo;
             while(BtnGetEvt(&EInfo) == OK) {
                 if(EInfo.Type == bePress) OnBtnPress();
@@ -138,12 +131,12 @@ void App_t::ITask() {
         } // EVTMSK_BTN_PRESS
 #endif
 #if 1   // ==== ADC ====
-        if(EvtMsk & EVTMSK_SAMPLING) OnAdcSamplingTime();
-        if(EvtMsk & EVTMSK_ADC_DONE) OnAdcDone(lhpDoNotHide);
+        if(EvtMsk & EVT_SAMPLING) OnAdcSamplingTime();
+        if(EvtMsk & EVT_ADC_DONE) OnAdcDone(lhpDoNotHide);
 #endif
 
 #if 1 // ==== ImgList ====
-        if(EvtMsk & EVTMSK_IMGLIST_TIME) ImgList.OnTime();
+        if(EvtMsk & EVT_IMGLIST_TIME) ImgList.OnTime();
 #endif
     } // while true
 }
@@ -222,10 +215,10 @@ uint8_t GetNextImg() {
 
 // Single-level structure only
 enum Action_t {IteratingImgs, IteratingDirs};
-Action_t Action = IteratingImgs;
-char DirName[13] = { 0 };
-bool CurrentDirIsRoot = true;
-bool StartOver = true;
+static Action_t Action = IteratingImgs;
+static char DirName[13] = { 0 };
+static bool CurrentDirIsRoot = true;
+static bool StartOver = true;
 
 uint8_t GetNextDir() {
     bool OldDirFound = false;
@@ -328,6 +321,6 @@ void App_t::DrawNext() {
 
 // 5v Sns
 void Process5VSns(PinSnsState_t *PState, uint32_t Len) {
-    if(PState[0] == pssRising) App.SignalEvt(EVTMSK_USB_CONNECTED);
-    else if(PState[0] == pssFalling) App.SignalEvt(EVTMSK_USB_DISCONNECTED);
+    if(PState[0] == pssRising) App.SignalEvt(EVT_USB_CONNECTED);
+    else if(PState[0] == pssFalling) App.SignalEvt(EVT_USB_DISCONNECTED);
 }

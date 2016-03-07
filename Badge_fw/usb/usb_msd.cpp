@@ -56,8 +56,8 @@ static void usb_event(USBDriver *usbp, usbevent_t event) {
             usbInitEndpointI(usbp, EP_DATA_IN_ID,  &ep1config);
             usbInitEndpointI(usbp, EP_DATA_OUT_ID, &ep1config);
             UsbMsd.ISayIsReady = true;
-            App.SignalEvtI(EVTMSK_USB_READY);
-            chEvtSignalI(UsbMsd.PThread, EVTMSK_USB_READY);
+            App.SignalEvtI(EVT_USB_READY);
+            chEvtSignalI(UsbMsd.PThread, EVT_USB_READY);
             chSysUnlockFromISR();
             return;
         case USB_EVENT_SUSPEND:
@@ -116,14 +116,14 @@ bool OnSetupPkt(USBDriver *usbp) {
 void OnDataInCompleted(USBDriver *usbp, usbep_t ep) {
     chSysLockFromISR();
 //    Uart.PrintfI("inDone\r");
-    chEvtSignalI(UsbMsd.PThread, EVTMSK_USB_IN_DONE);
+    chEvtSignalI(UsbMsd.PThread, EVT_USB_IN_DONE);
     chSysUnlockFromISR();
 }
 
 void OnDataOutCompleted(USBDriver *usbp, usbep_t ep) {
     chSysLockFromISR();
 //    Uart.PrintfI("OutDone\r");
-    chEvtSignalI(UsbMsd.PThread, EVTMSK_USB_OUT_DONE);
+    chEvtSignalI(UsbMsd.PThread, EVT_USB_OUT_DONE);
     chSysUnlockFromISR();
 }
 
@@ -139,14 +139,14 @@ __noreturn
 void UsbMsd_t::Task() {
     while(true) {
         uint32_t EvtMsk = chEvtWaitAny(ALL_EVENTS);
-        if(EvtMsk & EVTMSK_USB_READY) {
+        if(EvtMsk & EVT_USB_READY) {
             // Receive header
             chSysLock();
             usbStartReceiveI(&USBDrv, EP_DATA_OUT_ID, (uint8_t*)&CmdBlock, MS_CMD_SZ);
             chSysUnlock();
         }
 
-        if(EvtMsk & EVTMSK_USB_OUT_DONE) {
+        if(EvtMsk & EVT_USB_OUT_DONE) {
             SCSICmdHandler();
             // Receive header again
             chSysLock();
@@ -205,7 +205,7 @@ void UsbMsd_t::BusyWaitIN() {
 }
 
 uint8_t UsbMsd_t::BusyWaitOUT() {
-    eventmask_t evt = chEvtWaitAnyTimeout(EVTMSK_USB_OUT_DONE, MS2ST(MSD_TIMEOUT_MS));
+    eventmask_t evt = chEvtWaitAnyTimeout(EVT_USB_OUT_DONE, MS2ST(MSD_TIMEOUT_MS));
     return (evt == 0)? TIMEOUT : OK;
 }
 

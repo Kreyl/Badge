@@ -21,7 +21,7 @@ static inline char* skipleading(char *S) {
 
 static void TmrImgCallback(void *p) {
     chSysLockFromISR();
-    App.SignalEvtI(EVTMSK_IMGLIST_TIME);
+    App.SignalEvtI(EVT_IMGLIST_TIME);
     chSysUnlockFromISR();
 }
 
@@ -75,7 +75,15 @@ uint8_t ImgList_t::TryToConfig(const char* Filename) {
     end:
     f_close(&File);
     Print();
-    return (Count > 0)? OK : FAILURE;
+    if(Count > 0) {
+        // Check if at least single file exists
+        for(uint32_t i=0; i<Count; i++) {
+            if(f_stat(Info[i].Name, &FileInfo) == FR_OK) {
+                if(FileInfo.fsize > 12) return OK;
+            }
+        }
+    }
+    return FAILURE;
 }
 
 void ImgList_t::Print() {
