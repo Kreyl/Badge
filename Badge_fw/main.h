@@ -22,6 +22,7 @@
 class App_t {
 private:
     thread_t *PThread;
+    bool Is5VConnected = false;
 public:
     bool IsDisplayingBattery;
     void DrawNext();

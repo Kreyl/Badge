@@ -74,7 +74,7 @@ uint8_t ImgList_t::TryToConfig(const char* Filename) {
     }
     end:
     f_close(&File);
-    Print();
+//    Print();
     if(Count > 0) {
         // Check if at least single file exists
         for(uint32_t i=0; i<Count; i++) {

@@ -15,7 +15,8 @@ App_t App;
 TmrKL_t TmrMeasurement;
 ImgList_t ImgList;
 
-#define IsCharging()    (!PinIsSet(BAT_CHARGE_GPIO, BAT_CHARGE_PIN))
+#define IsCharging()        (!PinIsSet(BAT_CHARGE_GPIO, BAT_CHARGE_PIN))
+#define ButtonIsPressed()   (PinIsSet(BTN_GPIO, BTN_PIN))
 
 // Extension of graphic files to search
 const char Extension[] = "*.bmp";
@@ -83,6 +84,7 @@ void App_t::ITask() {
 #if 1 // ==== USB ====
         if(EvtMsk & EVT_USB_CONNECTED) {
             Uart.Printf("5v is here\r");
+            Is5VConnected = true;
             chThdSleepMilliseconds(270);
             // Enable HSI48
             chSysLock();
@@ -101,6 +103,7 @@ void App_t::ITask() {
 
         if(EvtMsk & EVT_USB_DISCONNECTED) {
             Uart.Printf("5v off\r");
+            Is5VConnected = false;
             // Disable Usb & HSI48
             UsbMsd.Disconnect();
             chSysLock();
@@ -112,7 +115,7 @@ void App_t::ITask() {
             if(r == OK) {
                 Clk.DisableCRS();
                 Clk.DisableHSI48();
-                Uart.Printf("cr2=%X\r", RCC->CR2);
+//                Uart.Printf("cr2=%X\r", RCC->CR2);
             }
             else Uart.Printf("Hsi Fail\r");
         }
@@ -126,7 +129,7 @@ void App_t::ITask() {
             BtnEvtInfo_t EInfo;
             while(BtnGetEvt(&EInfo) == OK) {
                 if(EInfo.Type == bePress) OnBtnPress();
-//                else if(EInfo.Type == beLongPress) Shutdown();
+                else if(EInfo.Type == beLongPress and !Is5VConnected) Shutdown();
             } // while getinfo ok
         } // EVTMSK_BTN_PRESS
 #endif
@@ -192,18 +195,26 @@ void App_t::OnAdcDone(LcdHideProcess_t Hide) {
 
 void App_t::Shutdown() {
     Uart.PrintfNow("Shutdown\r");
+    UsbMsd.Disconnect();
     Lcd.Shutdown();
     Mem.PowerDown();
+    // Wait until button depressed
+    while(ButtonIsPressed()) chThdSleepMilliseconds(27);
+    chThdSleepMilliseconds(999);
     Sleep::EnableWakeup1Pin();
     Sleep::EnterStandby();
 }
 
 #if 1 // ============================ Image search etc =========================
+#define IMG_SEARCH_DEBUG    FALSE
+
 uint8_t GetNextImg() {
     while(true) {
         uint8_t rslt = f_readdir(&Dir, &FileInfo);  // Get item in dir
         if(rslt == FR_OK and FileInfo.fname[0]) {   // Something found
-//            Uart.Printf("1> %S; attrib=%X\r", FileInfo.fname, FileInfo.fattrib);
+#if IMG_SEARCH_DEBUG
+            Uart.Printf("1> %S; attrib=%X\r", FileInfo.fname, FileInfo.fattrib);
+#endif
             if(FileInfo.fattrib & (AM_HID | AM_DIR)) continue; // Ignore hidden files and dirs
             else {
                 if(strstr(FileInfo.fname, ".BMP") != nullptr) return OK;
@@ -225,7 +236,9 @@ uint8_t GetNextDir() {
     while(true) {
         uint8_t rslt = f_readdir(&Dir, &FileInfo);
         if(rslt == FR_OK and FileInfo.fname[0]) {   // File found
-//            Uart.Printf("2> %S; attrib=%X\r", FileInfo.fname, FileInfo.fattrib);
+#if IMG_SEARCH_DEBUG
+            Uart.Printf("2> %S; attrib=%X\r", FileInfo.fname, FileInfo.fattrib);
+#endif
             if(FileInfo.fattrib & AM_HID) continue;
             if(FileInfo.fattrib & AM_DIR) {
                 if(*DirName == '\0' or OldDirFound) {
@@ -241,7 +254,6 @@ uint8_t GetNextDir() {
     } // while true
 }
 
-
 void App_t::DrawNext() {
     uint8_t rslt;
     bool WrapAround = false;
@@ -252,7 +264,10 @@ void App_t::DrawNext() {
 
     while(true) {
         if(StartOver) {
-//            Uart.Printf("StartOver\r");
+#if IMG_SEARCH_DEBUG
+            Uart.Printf("StartOver\r");
+#endif
+            f_mount(&FatFS, "", 1); // Reread filesystem
             f_opendir(&Dir, "/");   // Open root dir
             f_chdir("/");
             StartOver = false;
@@ -260,17 +275,23 @@ void App_t::DrawNext() {
         }
 
         if(Action == IteratingImgs) {
+#if IMG_SEARCH_DEBUG
             Uart.Printf("IImg\r");
+#endif
             rslt = GetNextImg();
             if(rslt == OK) {
+#if IMG_SEARCH_DEBUG
                 Uart.Printf("GotImg\r");
+#endif
                 if(Lcd.DrawBmpFile(0,0, FileInfo.fname, &File) == OK) {
                     IsDisplayingBattery = false;
                     break;
                 }
             }
             else { // No more image found
+#if IMG_SEARCH_DEBUG
                 Uart.Printf("NoImg\r");
+#endif
                 f_closedir(&Dir);
                 Action = IteratingDirs;
                 if(CurrentDirIsRoot) *DirName = '\0';  // Start searching subdirs from beginning
@@ -279,10 +300,14 @@ void App_t::DrawNext() {
         }
         // Iterating dirs
         else {
+#if IMG_SEARCH_DEBUG
             Uart.Printf("IDir\r");
+#endif
             rslt = GetNextDir();
             if(rslt == OK) {
+#if IMG_SEARCH_DEBUG
                 Uart.Printf("GotDir\r");
+#endif
                 f_opendir(&Dir, DirName);
                 f_chdir(DirName);
                 CurrentDirIsRoot = false;
@@ -295,7 +320,9 @@ void App_t::DrawNext() {
             }
             // No dir, end of root
             else {
+#if IMG_SEARCH_DEBUG
                 Uart.Printf("NoDir\r");
+#endif
                 if(IsDisplayingBattery) {
                     if(WrapAround) {    // No good files
                         Lcd.DrawNoImage();
