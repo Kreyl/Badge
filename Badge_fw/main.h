@@ -24,11 +24,12 @@ private:
     thread_t *PThread;
 public:
     bool IsDisplayingBattery;
-    void DrawNextBmp();
+    void DrawNext();
     uint8_t BatteryPercent = 255; // dummy value
     void OnAdcSamplingTime();
     void OnAdcDone(LcdHideProcess_t Hide);
     void Shutdown();
+    void OnBtnPress();
     // Eternal methods
     void InitThread() { PThread = chThdGetSelfX(); }
     void SignalEvt(eventmask_t Evt) {

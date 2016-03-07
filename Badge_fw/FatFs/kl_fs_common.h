@@ -21,4 +21,9 @@ uint8_t TryOpenFileRead(const char *Filename, FIL *PFile);
 uint8_t CheckFileNotEmpty(FIL *PFile);
 uint8_t TryRead(FIL *PFile, void *Ptr, uint32_t Sz);
 
+uint8_t OpenNextDir();
+//bool CurrentDirIsRoot();
+//void ResetCurrDir
+
 uint8_t ReadLine(FIL *PFile, char* S, uint32_t MaxLen);
+

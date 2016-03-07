@@ -73,10 +73,7 @@ int main(void) {
     // ==== FAT init ====
     // DMA-based MemCpy init
     dmaStreamAllocate(STM32_DMA1_STREAM3, IRQ_PRIO_LOW, NULL, NULL);
-    if(TryInitFS() == OK) {
-        if(ImgList.TryToConfig("config.ini") == OK) ImgList.Start();
-        else App.DrawNextBmp();
-    }
+//    if(TryInitFS() == OK) App.DrawNextBmp();
 
     PinSensors.Init();
     TmrMeasurement.InitAndStart(chThdGetSelfX(), MS2ST(MEASUREMENT_PERIOD_MS), EVTMSK_SAMPLING, tktPeriodic);
@@ -84,17 +81,13 @@ int main(void) {
     App.ITask();
 }
 
+//if(ImgList.TryToConfig("config.ini") == OK) ImgList.Start();
+
 __noreturn
 void App_t::ITask() {
     while(true) {
         __unused uint32_t EvtMsk = chEvtWaitAny(ALL_EVENTS);
-#if UART_RX_ENABLED
-        if(EvtMsk & EVTMSK_UART_NEW_CMD) {
-            OnCmd((Shell_t*)&Uart);
-            Uart.SignalCmdProcessed();
-        }
-#endif
-#if 1 // ==== USB ====
+#if 0 // ==== USB ====
         if(EvtMsk & EVTMSK_USB_CONNECTED) {
             Uart.Printf("5v is here\r");
             chThdSleepMilliseconds(270);
@@ -139,24 +132,7 @@ void App_t::ITask() {
         if(EvtMsk & EVTMSK_BUTTONS) {
             BtnEvtInfo_t EInfo;
             while(BtnGetEvt(&EInfo) == OK) {
-                if(EInfo.Type == bePress) {
-//                    Uart.Printf("Btn\r");
-                    // Try to mount FS again if not mounted
-                    if(FATFS_IS_OK()) App.DrawNextBmp();
-                    else {
-                        if(TryInitFS() == OK) App.DrawNextBmp();
-                        else {
-                            if(IsDisplayingBattery) {
-                                IsDisplayingBattery = false;
-                                Lcd.DrawNoImage();
-                            }
-                            else {
-                                Lcd.DrawBattery(BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpHide);
-                                IsDisplayingBattery = true;
-                            }
-                        } // FS error
-                    } // if FAT ok
-                } // if press
+                if(EInfo.Type == bePress) OnBtnPress();
 //                else if(EInfo.Type == beLongPress) Shutdown();
             } // while getinfo ok
         } // EVTMSK_BTN_PRESS
@@ -170,6 +146,25 @@ void App_t::ITask() {
         if(EvtMsk & EVTMSK_IMGLIST_TIME) ImgList.OnTime();
 #endif
     } // while true
+}
+
+void App_t::OnBtnPress() {
+    // Uart.Printf("Btn\r");
+    // Try to mount FS again if not mounted
+    if(FATFS_IS_OK()) DrawNext();
+    else {
+        if(TryInitFS() == OK) DrawNext();
+        else {
+            if(IsDisplayingBattery) {
+                IsDisplayingBattery = false;
+                Lcd.DrawNoImage();
+            }
+            else {
+                Lcd.DrawBattery(BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpHide);
+                IsDisplayingBattery = true;
+            }
+        } // FS error
+    } // if FAT ok
 }
 
 void App_t::OnAdcSamplingTime() {
@@ -224,45 +219,154 @@ void App_t::OnCmd(Shell_t *PShell) {
 }
 #endif
 
-void App_t::DrawNextBmp() {
+uint8_t GetNextImg() {
+    while(true) {
+        uint8_t rslt = f_readdir(&Dir, &FileInfo);  // Get item in dir
+        if(rslt == FR_OK and FileInfo.fname[0]) {   // Something found
+            Uart.Printf("1> %S; attrib=%X\r", FileInfo.fname, FileInfo.fattrib);
+            if(FileInfo.fattrib & (AM_HID | AM_DIR)) continue; // Ignore hidden files and dirs
+            else {
+                if(strstr(FileInfo.fname, ".BMP") != nullptr) return OK;
+            }
+        }
+        else return FAILURE;
+    }
+}
+
+// Single-level structure only
+enum Action_t {IteratingImgs, IteratingDirs};
+Action_t Action = IteratingImgs;
+char DirName[13] = { 0 };
+bool CurrentDirIsRoot = true;
+bool StartOver = true;
+
+uint8_t GetNextDir() {
+    bool OldDirFound = false;
+    while(true) {
+        uint8_t rslt = f_readdir(&Dir, &FileInfo);
+        if(rslt == FR_OK and FileInfo.fname[0]) {   // File found
+            Uart.Printf("2> %S; attrib=%X\r", FileInfo.fname, FileInfo.fattrib);
+            if(FileInfo.fattrib & AM_HID) continue;
+            if(FileInfo.fattrib & AM_DIR) {
+                if(*DirName == '\0' or OldDirFound) {
+                    strcpy(DirName, FileInfo.fname);
+                    return OK;
+                }
+                else {
+                    if(strcasecmp(FileInfo.fname, DirName) == 0) OldDirFound = true; // Take next dir after that
+                }
+            }
+        } // if rslt ok
+        else return FAILURE;
+    } // while true
+}
+
+
+void App_t::DrawNext() {
     uint8_t rslt;
     bool WrapAround = false;
+    ImgList.Stop();
+
     while(true) {
-        rslt = f_findnext(&Dir, &FileInfo);
-        if(rslt == FR_OK and FileInfo.fname[0]) {   // File found
-            Uart.Printf("1> %S; attrib=%X\r", FileInfo.fname, FileInfo.fattrib);
-            if(FileInfo.fattrib & AM_HID) continue; // Ignore hidden files
-            else goto lbl_Found;                    // Correct file found
+        Uart.Printf("A\r");
+        if(StartOver) {
+            Uart.Printf("StartOver\r");
+            f_opendir(&Dir, "/");   // Open root dir
+            f_chdir("/");
+            StartOver = false;
+            CurrentDirIsRoot = true;
         }
-        else { // Not found, or dir closed
-            // Display battery if not displayed yet
-            if(IsDisplayingBattery) {
-                f_closedir(&Dir);
-                if(WrapAround) {    // Dir does not contain good files
-                    Lcd.DrawNoImage();
+
+        if(Action == IteratingImgs) {
+            Uart.Printf("II\r");
+            rslt = GetNextImg();
+            if(rslt == OK) {
+                Uart.Printf("GotImg\r");
+                if(Lcd.DrawBmpFile(0,0, FileInfo.fname, &File) == OK) {
                     IsDisplayingBattery = false;
+                    break;
+                }
+            }
+            else { // No more image found
+                Uart.Printf("NoImg\r");
+                f_closedir(&Dir);
+                Action = IteratingDirs;
+                if(CurrentDirIsRoot) *DirName = '\0';  // Start searching subdirs from beginning
+                StartOver = true;   // Anyway, open root dir
+            }
+        }
+        // Iterating dirs
+        else {
+            Uart.Printf("IDir\r");
+            rslt = GetNextDir();
+            if(rslt == OK) {
+                Uart.Printf("GotDir\r");
+                f_opendir(&Dir, DirName);
+                f_chdir(DirName);
+                CurrentDirIsRoot = false;
+                Action = IteratingImgs;
+            }
+            // No dir, end of root
+            else {
+                Uart.Printf("NoDir\r");
+                if(IsDisplayingBattery) {
+                    if(WrapAround) {    // No good files
+                        Lcd.DrawNoImage();
+                        IsDisplayingBattery = false;
+                        return;
+                    }
+                    else { // Start over
+                        WrapAround = true;
+                        StartOver = true;
+                        Action = IteratingImgs;
+                    }
+                }
+                else { // Display battery
+                    Lcd.DrawBattery(BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpHide);
+                    IsDisplayingBattery = true;
                     return;
                 }
-                // Reread dir
-                rslt = f_findfirst(&Dir, &FileInfo, "", Extension);
-                WrapAround = true;
-                if(rslt == FR_OK and FileInfo.fname[0]) {   // File found
-                    Uart.Printf("2> %S; attrib=%X\r", FileInfo.fname, FileInfo.fattrib);
-                    if(FileInfo.fattrib & AM_HID) continue; // Ignore hidden files
-                    else goto lbl_Found;                    // Correct file found
-                }
-            } // if(IsDisplayingBattery)
-            else {
-                Lcd.DrawBattery(BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpHide);
-                IsDisplayingBattery = true;
-                return;
-            }
-        } // not found
+            } // No dir, end of root
+        } // Iterating dirs
     } // while true
-    lbl_Found:
-    IsDisplayingBattery = false;
-    Uart.PrintfNow("%S\r", FileInfo.fname);
-    Lcd.DrawBmpFile(0, 0, FileInfo.fname, &File);
+
+//    bool WrapAround = false;
+//    while(true) {
+//        rslt = f_findnext(&Dir, &FileInfo);
+//        if(rslt == FR_OK and FileInfo.fname[0]) {   // File found
+//            Uart.Printf("1> %S; attrib=%X\r", FileInfo.fname, FileInfo.fattrib);
+//            if(FileInfo.fattrib & AM_HID) continue; // Ignore hidden files
+//            else goto lbl_Found;                    // Correct file found
+//        }
+//        else { // Not found, or dir closed
+//            // Display battery if not displayed yet
+//            if(IsDisplayingBattery) {
+//                f_closedir(&Dir);
+//                if(WrapAround) {    // Dir does not contain good files
+//                    Lcd.DrawNoImage();
+//                    IsDisplayingBattery = false;
+//                    return;
+//                }
+//                // Reread dir
+//                rslt = f_findfirst(&Dir, &FileInfo, "", Extension);
+//                WrapAround = true;
+//                if(rslt == FR_OK and FileInfo.fname[0]) {   // File found
+//                    Uart.Printf("2> %S; attrib=%X\r", FileInfo.fname, FileInfo.fattrib);
+//                    if(FileInfo.fattrib & AM_HID) continue; // Ignore hidden files
+//                    else goto lbl_Found;                    // Correct file found
+//                }
+//            } // if(IsDisplayingBattery)
+//            else {
+//                Lcd.DrawBattery(BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpHide);
+//                IsDisplayingBattery = true;
+//                return;
+//            }
+//        } // not found
+//    } // while true
+//    lbl_Found:
+//    IsDisplayingBattery = false;
+//    Uart.PrintfNow("%S\r", FileInfo.fname);
+//    Lcd.DrawBmpFile(0, 0, FileInfo.fname, &File);
 }
 
 // 5v Sns

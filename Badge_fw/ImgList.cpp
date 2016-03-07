@@ -92,6 +92,10 @@ void ImgList_t::Start() {
     OnTime();
 }
 
+void ImgList_t::Stop() {
+    chVTReset(&Tmr);
+}
+
 void ImgList_t::OnTime() {
     uint8_t Rslt = FAILURE, Overflows = 0;
     do {

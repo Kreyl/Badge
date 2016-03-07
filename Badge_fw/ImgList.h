@@ -27,6 +27,7 @@ private:
     uint16_t PrevFadeOut;
     virtual_timer_t Tmr;
 public:
+    bool AutoChange = false;
     uint8_t TryToConfig(const char* Filename);
     void Print();
     void Start();

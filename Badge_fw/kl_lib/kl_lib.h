@@ -14,12 +14,12 @@
 
 /*
 Build time:
-Define symbol BUILD_TIME in mai.cpp options with value "\"${current_date}\"".
-Maybe, to calm Eclipse, it will be required to write extra quote inthe end: "\"${current_date}\"""
+Define symbol BUILD_TIME in main.cpp options with value "\"${current_date}\"".
+Maybe, to calm Eclipse, it will be required to write extra quote in the end: "\"${current_date}\"""
 */
 
 // Lib version
-#define KL_LIB_VERSION      "20160226_2212"
+#define KL_LIB_VERSION      "20160306_1222"
 
 #if defined STM32L1XX
 #include "stm32l1xx.h"
@@ -217,6 +217,12 @@ public:
 };
 #endif
 
+#if 1 // ========================== Random =====================================
+static inline int Random(int LowInclusive, int HighInclusive) {
+    return (rand() % (HighInclusive + 1 - LowInclusive)) + LowInclusive;
+}
+#endif
+
 #if 0 // =========================== Time ======================================
 static inline bool TimeElapsed(systime_t *PSince, uint32_t Delay_ms) {
     chSysLock();
@@ -227,12 +233,12 @@ static inline bool TimeElapsed(systime_t *PSince, uint32_t Delay_ms) {
 }
 #endif
 
-#if 0 // ========================== Simple delay ===============================
+#if 1 // ========================== Simple delay ===============================
 static inline void DelayLoop(volatile uint32_t ACounter) { while(ACounter--); }
-static inline void Delay_ms(uint32_t Ams) {
-    volatile uint32_t __ticks = (Clk.AHBFreqHz / 4000) * Ams;
-    DelayLoop(__ticks);
-}
+//static inline void Delay_ms(uint32_t Ams) {
+//    volatile uint32_t __ticks = (Clk.AHBFreqHz / 4000) * Ams;
+//    DelayLoop(__ticks);
+//}
 #endif
 
 #if 0 // ======================= Power and backup unit =========================
@@ -324,11 +330,10 @@ enum ExtTrigPsc_t {etpOff=0x0000, etpDiv2=0x1000, etpDiv4=0x2000, etpDiv8=0x3000
 class Timer_t {
 protected:
     TIM_TypeDef* ITmr;
-    uint32_t *PClk;
 public:
     // Common
-    Timer_t(TIM_TypeDef *APTimer) : ITmr(APTimer), PClk(nullptr) {}
-    Timer_t() : ITmr(nullptr), PClk(nullptr) {}
+    Timer_t(TIM_TypeDef *APTimer) : ITmr(APTimer) {}
+    Timer_t() : ITmr(nullptr) {}
     void Init();
     void Deinit();
     void Enable()  { TMR_ENABLE(ITmr); }
@@ -336,7 +341,7 @@ public:
     void SetUpdateFrequency(uint32_t FreqHz);
     void SetTopValue(uint32_t Value) { ITmr->ARR = Value; }
     uint32_t GetTopValue() { return ITmr->ARR; }
-    void SetupPrescaler(uint32_t PrescaledFreqHz) { ITmr->PSC = (*PClk / PrescaledFreqHz) - 1; }
+    void SetupPrescaler(uint32_t PrescaledFreqHz);
     void SetCounter(uint32_t Value) { ITmr->CNT = Value; }
     uint32_t GetCounter() { return ITmr->CNT; }
     // Master/Slave
@@ -370,6 +375,11 @@ public:
 #endif
 
 #if 1 // ===================== Simple pin manipulations ========================
+struct PortPin_t {
+    GPIO_TypeDef *PGpio;
+    uint16_t Pin;
+};
+
 enum PinPullUpDown_t {
     pudNone = 0b00,
     pudPullUp = 0b01,
@@ -418,8 +428,20 @@ enum PinAF_t {
 #endif
 #define PinToggle(PGpio, APin)  PGpio->ODR  ^= ((uint16_t)(1 << (APin)))
 
-// Check state
-#define PinIsSet(PGpio, APin) (PGpio->IDR & (uint32_t)(1<<(APin)))
+// Check input
+__always_inline
+static inline bool PinIsSet(GPIO_TypeDef *PGpio, uint32_t APin) {
+    return PGpio->IDR & (1 << APin);
+}
+__always_inline
+static inline bool PinIsSet(const PortPin_t PortPin) {
+    return PortPin.PGpio->IDR & (1 << PortPin.Pin);
+}
+__always_inline
+static inline bool PinIsClear(const PortPin_t PortPin) {
+    return !(PortPin.PGpio->IDR & (1 << PortPin.Pin));
+}
+
 // Setup
 static void PinClockEnable(GPIO_TypeDef *PGpioPort) {
 #if defined STM32F2XX || defined STM32F4XX
@@ -495,6 +517,7 @@ static inline void PinSetupOut(
     PGpioPort->OSPEEDR |= (uint32_t)ASpeed << Offset;
 #endif
 }
+
 static inline void PinSetupIn(
         GPIO_TypeDef *PGpioPort,
         const uint16_t APinNumber,
@@ -528,6 +551,11 @@ static inline void PinSetupIn(
     PGpioPort->PUPDR |= (uint32_t)APullUpDown << (APinNumber*2);
 #endif
 }
+
+static inline void PinSetupIn(const PortPin_t PortPin, const PinPullUpDown_t APullUpDown) {
+    PinSetupIn(PortPin.PGpio, PortPin.Pin, APullUpDown);
+}
+
 static inline void PinSetupAnalog(GPIO_TypeDef *PGpioPort, const uint16_t APinNumber) {
     // Clock
     PinClockEnable(PGpioPort);
@@ -544,6 +572,10 @@ static inline void PinSetupAnalog(GPIO_TypeDef *PGpioPort, const uint16_t APinNu
     // Setup mode
     PGpioPort->MODER |= 0b11 << (APinNumber*2);  // Set new bits
 #endif
+}
+
+static inline void PinSetupAnalog(const PortPin_t PortPin) {
+    PinSetupAnalog(PortPin.PGpio, PortPin.Pin);
 }
 
 static inline void PinSetupAlterFunc(
@@ -997,7 +1029,7 @@ public:
 #endif
 
 #if 1 // =========================== Clocking ==================================
-#if defined STM32L1XX_MDP
+#if defined STM32L1XX
 #include "stm32l1xx.h"
 /*
  * Right after reset, CPU works on internal MSI source.
@@ -1067,6 +1099,12 @@ public:
     void DisableHSI() { RCC->CR &= ~RCC_CR_HSION; }
     void DisablePLL() { RCC->CR &= ~RCC_CR_PLLON; }
     void DisableMSI() { RCC->CR &= ~RCC_CR_MSION; }
+    // MSI
+    void SetMSI4MHz() {
+        uint32_t tmp = RCC->ICSCR & (~RCC_ICSCR_MSIRANGE);
+        tmp |= RCC_ICSCR_MSIRANGE_6;
+        RCC->ICSCR = tmp;
+    }
     void SetupBusDividers(AHBDiv_t AHBDiv, APBDiv_t APB1Div, APBDiv_t APB2Div);
     uint8_t SetupPLLMulDiv(PllMul_t PllMul, PllDiv_t PllDiv);
     void UpdateFreqValues();
@@ -1096,9 +1134,8 @@ public:
 
 extern Clk_t Clk;
 
-// =============================== V Core ======================================
+// ==== V Core ====
 enum VCore_t {vcore1V2=0b11, vcore1V5=0b10, vcore1V8=0b01};
-extern VCore_t VCore;
 void SetupVCore(VCore_t AVCore);
 
 #elif defined STM32F0XX

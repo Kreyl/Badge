@@ -42,7 +42,7 @@ public:
 #endif
 
 
-#if 1 // ======================== Single Led Smooth ============================
+#if 0 // ======================== Single Led Smooth ============================
 #define LED_TOP_VALUE       100
 #define LED_INVERTED_PWM    invNotInverted
 #define LED_OUT_TYPE        omPushPull
