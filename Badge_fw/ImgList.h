@@ -8,30 +8,27 @@
 #pragma once
 
 #include "kl_lib.h"
-
-#define FILENAME_SZ     13  // 8 + . + 3 + \0
-#define LIST_CNT        20
+#include "ff.h"
 
 #define LINE_SZ         256
 
 struct ImgInfo_t {
-    char Name[FILENAME_SZ];
+    char Name[256];
     uint32_t TimeToShow;
-    uint16_t FadeIn, FadeOut;   // Fade constants
+    int32_t FadeIn, FadeOut;   // Fade constants
 } __packed;
 
 class ImgList_t {
 private:
-    uint32_t Count, Current;
-    ImgInfo_t Info[LIST_CNT];
     uint16_t PrevFadeOut;
     virtual_timer_t Tmr;
-    bool IIsActive;
+    bool IIsCfgOk = false, IIsActive = false;
+    FIL IFile;
+    ImgInfo_t Info;
+    uint8_t ReadNextInfo();
 public:
-    bool AutoChange = false;
     uint8_t TryToConfig(const char* Filename);
     bool IsActive() { return IIsActive; }
-    void Print();
     void Start();
     void Stop();
     void OnTime();

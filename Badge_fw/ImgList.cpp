@@ -12,8 +12,6 @@
 #include "lcd_round.h"
 #include "main.h"
 
-#define IMG_DELIMITERS      " :="
-
 static inline char* skipleading(char *S) {
     while (*S != '\0' && *S <= ' ') S++;
     return S;
@@ -26,33 +24,60 @@ static void TmrImgCallback(void *p) {
 }
 
 uint8_t ImgList_t::TryToConfig(const char* Filename) {
-    // Emty list
-    Count = 0;
-    uint32_t Indx = 0;
-    if(TryOpenFileRead(Filename, &File) != OK) return FAILURE;
+    Stop();
+    IIsCfgOk = false;
+    uint8_t Rslt = TryOpenFileRead(Filename, &IFile);
+//    Uart.Printf("%S: %u\r", Filename, Rslt);
+    if(Rslt != OK) return FAILURE;
+    // Check if at least single file exists
+    while(true) {
+        if(ReadNextInfo() == OK) {
+            FILINFO FInfo;
+            if(f_stat(Info.Name, &FInfo) == FR_OK) {
+                if(FInfo.fsize > 12) {   // Min BMP file sz is 12
+                    f_lseek(&IFile, 0); // Rewind file to beginning
+                    IIsCfgOk = true;
+                    return OK;
+                }
+            }
+        }
+        else return FAILURE;
+    }
+}
+
+uint8_t ImgList_t::ReadNextInfo() {
+    uint8_t Rslt;
     char S[LINE_SZ];
-    while(ReadLine(&File, S, LINE_SZ) == OK) {
+    *Info.Name = '\0';
+    while(true) {
+        Rslt = ReadLine(&IFile, S, LINE_SZ);
+        if(Rslt != OK) {
+//            Uart.Printf("RL: %u\r", Rslt);
+            return Rslt;
+        }
+//        Uart.Printf(">%S\r", S);
+        // Parse line
         char* StartP = skipleading(S);     // Skip leading spaces
         if(*StartP == ';' or *StartP == '#' or *StartP == '\0') continue;  // Skip comments
         // If name was found
         if(*StartP == '[') {    // New filename
             StartP++;           // Move to first char of name
             char* EndP = strchr(StartP, ']');
+            if(EndP == nullptr) { Uart.Printf("Bad param at %S\r", StartP); continue; }
             int32_t len = EndP - StartP;
-            if(len < 5 or len > 12) {   // 1.bmp is shortest, 12345678.bmp is longest
-                Uart.Printf("Bad fname at %u\r", Indx);
-                goto end;
-            }
-            *EndP = 0;   // End of string
-            Count++;
-            Indx = Count-1;
-            strcpy(Info[Indx].Name, StartP);
+            // Check length: 1.bmp is shortest
+            if(len < 5) { Uart.Printf("Bad fname1: %S\r", StartP); continue; }
+            *EndP = 0;  // Make End of string
+            EndP -= 4;  // Move to '.' char
+            if(strcasecmp(EndP, ".BMP") != 0) { Uart.Printf("Bad fname2: %S\r", StartP); continue; }
+            strcpy(Info.Name, StartP);
+//            Uart.Printf("FName: %S\r", Info.Name);
             // Init info with default values
-            Info[Indx].TimeToShow = 2700;
-            Info[Indx].FadeIn = 0;
-            Info[Indx].FadeOut = 0;
+            Info.TimeToShow = -1;
+            Info.FadeIn = -1;
+            Info.FadeOut = -1;
         }
-        // Parameter (maybe) was found
+        // Parameter (maybe) was found. Skip if name was not found.
         else {
             char* ParName = strtok(StartP, IMG_DELIMITERS);
             char* ParValue = strtok(NULL, IMG_DELIMITERS);
@@ -61,41 +86,26 @@ uint8_t ImgList_t::TryToConfig(const char* Filename) {
             char *p;
             int32_t Value = strtol(ParValue, &p, 0);
             if(*p == '\0') {
-                if     (strcasecmp(ParName, "FadeIn") == 0)     Info[Indx].FadeIn = Value;
-                else if(strcasecmp(ParName, "TimeToShow") == 0) Info[Indx].TimeToShow = Value;
-                else if(strcasecmp(ParName, "FadeOut") == 0)    Info[Indx].FadeOut = Value;
-                else Uart.Printf("Bad Par Name at %u\r", Indx);
+                if     (strcasecmp(ParName, "FadeIn") == 0)     Info.FadeIn = Value;
+                else if(strcasecmp(ParName, "TimeToShow") == 0) Info.TimeToShow = Value;
+                else if(strcasecmp(ParName, "FadeOut") == 0)    Info.FadeOut = Value;
+                else Uart.Printf("Bad Par Name at %S\r", Info.Name);
             }
             else {
-                Uart.Printf("NotANumber at %u\r", Indx);
+                Uart.Printf("NotANumber at %u\r", Info.Name);
                 continue;
             }
-        } // not a section
-    }
-    end:
-    f_close(&File);
-//    Print();
-    if(Count > 0) {
-        // Check if at least single file exists
-        for(uint32_t i=0; i<Count; i++) {
-            if(f_stat(Info[i].Name, &FileInfo) == FR_OK) {
-                if(FileInfo.fsize > 12) return OK;
+            // Check if Info completed
+            if(*Info.Name != '\0' and Info.FadeIn >= 0 and Info.TimeToShow > 0 and Info.FadeOut >= 0) {
+//                Uart.Printf("Read Info ok\r");
+                return OK;
             }
-        }
-    }
-    return FAILURE;
-}
-
-void ImgList_t::Print() {
-    Uart.Printf("Config Cnt=%u\r", Count);
-    for(uint32_t i=0; i<Count; i++) {
-        Uart.Printf("%S: Time=%u; FIn=%u; FOut=%u\r", Info[i].Name, Info[i].TimeToShow, Info[i].FadeIn, Info[i].FadeOut);
-    }
+        } // Parameter
+    } // while readline
 }
 
 void ImgList_t::Start() {
-    if(Count == 0) return;
-    Current = 0;
+    if(!IIsCfgOk) return;
     PrevFadeOut = 0;
     IIsActive = true;
     OnTime();
@@ -107,23 +117,25 @@ void ImgList_t::Stop() {
 }
 
 void ImgList_t::OnTime() {
-    uint8_t Rslt = FAILURE, Overflows = 0;
-    do {
-        ImgInfo_t *p = &Info[Current];
-//        Uart.Printf("OnTime %u %S t=%u\r", Current, p->Name, p->TimeToShow);
-        Rslt = Lcd.DrawBmpFile(0,0, p->Name, &File, p->FadeIn, PrevFadeOut);
-        chSysLock();
+    uint8_t Rslt;
+    bool WrapAround = false;
+    while(true) {
+        Rslt = ReadNextInfo();
+        if(Rslt == END_OF_FILE) {
+            if(WrapAround) return; // Seems like empty file
+            WrapAround = true;
+            f_lseek(&IFile, 0); // Rewind file to beginning
+            continue;
+        }
+        else if(Rslt != OK) return; // Read info failure
+        // Info ok
+//        Uart.Printf("OnTime %S t=%u; fi=%u; fo=%u\r", Info.Name, Info.TimeToShow, Info.FadeIn, Info.FadeOut);
+        Rslt = Lcd.DrawBmpFile(0,0, Info.Name, &File, Info.FadeIn, PrevFadeOut);
         // Start timer if draw succeded
         if(Rslt == OK) {
-            chVTSetI(&Tmr, MS2ST(p->TimeToShow), TmrImgCallback, nullptr);
-            PrevFadeOut = p->FadeOut;
+            chVTSet(&Tmr, MS2ST(Info.TimeToShow), TmrImgCallback, nullptr);
+            PrevFadeOut = Info.FadeOut;
+            return;
         }
-        // Goto next info
-        Current++;
-        if(Current >= Count) {
-            Current = 0;
-            Overflows++;
-        }
-        chSysUnlock();
-    } while(Overflows <= 1 and Rslt != OK); // Get out in case of success or if no success with all filenames
+    } // while true
 }

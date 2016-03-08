@@ -66,8 +66,8 @@ uint8_t ReadLine(FIL *PFile, char* S, uint32_t MaxLen) {
     uint32_t Len = 0, Rcv;
     char c, str[2];
     while(Len < MaxLen-1) {
-        f_read(PFile, str, 1, &Rcv);
-        if(Rcv != 1) break;
+        if(f_read(PFile, str, 1, &Rcv) != FR_OK) return FAILURE;
+        if(Rcv != 1) return END_OF_FILE;
         c = str[0];
         if(c == '\r' or c == '\n') {    // End of line
             *S = '\0';
@@ -79,5 +79,5 @@ uint8_t ReadLine(FIL *PFile, char* S, uint32_t MaxLen) {
         }
     } // while
     *S = '\0';
-    return (Len > 0)? OK : FAILURE;
+    return OK;
 }

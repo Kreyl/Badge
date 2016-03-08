@@ -83,6 +83,7 @@ void __early_init(void);
 #define EMPTY           10
 #define NOT_A_NUMBER    11
 #define OVERFLOW        12
+#define END_OF_FILE     13
 
 // Binary semaphores
 #define NOT_TAKEN       false

@@ -18,7 +18,7 @@ ImgList_t ImgList;
 #define IsCharging()        (!PinIsSet(BAT_CHARGE_GPIO, BAT_CHARGE_PIN))
 #define ButtonIsPressed()   (PinIsSet(BTN_GPIO, BTN_PIN))
 
-#define AHB_DIVIDER ahbDiv8
+#define AHB_DIVIDER ahbDiv2
 
 int main(void) {
     // ==== Setup clock frequency ====
@@ -64,7 +64,7 @@ int main(void) {
     // ==== FAT init ====
     // DMA-based MemCpy init
     dmaStreamAllocate(STM32_DMA1_STREAM3, IRQ_PRIO_LOW, NULL, NULL);
-    if(TryInitFS() == OK) Lcd.DrawBmpFile(0,0, "play_russian.bmp", &File);
+//    if(TryInitFS() == OK) Lcd.DrawBmpFile(0,0, "play_russian.bmp", &File);
 
     PinSensors.Init();
     TmrMeasurement.InitAndStart(chThdGetSelfX(), MS2ST(MEASUREMENT_PERIOD_MS), EVT_SAMPLING, tktPeriodic);
@@ -205,7 +205,7 @@ void App_t::Shutdown() {
 }
 
 #if 1 // ============================ Image search etc =========================
-#define IMG_SEARCH_DEBUG    TRUE
+#define IMG_SEARCH_DEBUG    FALSE
 
 uint8_t GetNextImg() {
     while(true) {
@@ -335,7 +335,7 @@ void App_t::DrawNext() {
                     if(WrapAround) {    // No good files
                         Lcd.DrawNoImage();
                         IsDisplayingBattery = false;
-                        return;
+                        break;
                     }
                     else { // Start over
                         WrapAround = true;
@@ -346,7 +346,7 @@ void App_t::DrawNext() {
                 else { // Display battery
                     Lcd.DrawBattery(BatteryPercent, (IsCharging()? bstCharging : bstDischarging), lhpHide);
                     IsDisplayingBattery = true;
-                    return;
+                    break;
                 }
             } // No dir, end of root
         } // Iterating dirs
