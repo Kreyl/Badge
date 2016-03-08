@@ -14,10 +14,9 @@
 #define CONFIG_FILENAME "config.ini"
 
 struct ImgInfo_t {
-    char Name[256];
     uint32_t TimeToShow;
     int32_t FadeIn, FadeOut;   // Fade constants
-    int32_t BckltOn;
+    char Name[256];
 } __packed;
 
 class ImgList_t {

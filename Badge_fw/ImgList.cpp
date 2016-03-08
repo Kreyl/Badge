@@ -78,7 +78,6 @@ uint8_t ImgList_t::ReadNextInfo() {
             Info.TimeToShow = -1;
             Info.FadeIn = -1;
             Info.FadeOut = -1;
-            Info.BckltOn = -1;
         }
         // Parameter (maybe) was found. Skip if name was not found.
         else {
@@ -92,7 +91,6 @@ uint8_t ImgList_t::ReadNextInfo() {
                 if     (strcasecmp(ParName, "FadeIn") == 0)     Info.FadeIn = Value;
                 else if(strcasecmp(ParName, "TimeToShow") == 0) Info.TimeToShow = Value;
                 else if(strcasecmp(ParName, "FadeOut") == 0)    Info.FadeOut = Value;
-                else if(strcasecmp(ParName, "Backlight") == 0)  Info.BckltOn = Value;
                 else Uart.Printf("Bad Par Name at %S\r", Info.Name);
             }
             else {
@@ -100,7 +98,7 @@ uint8_t ImgList_t::ReadNextInfo() {
                 continue;
             }
             // Check if Info completed
-            if(*Info.Name != '\0' and Info.FadeIn >= 0 and Info.TimeToShow > 0 and Info.FadeOut >= 0 and Info.BckltOn >= 0) {
+            if(*Info.Name != '\0' and Info.FadeIn >= 0 and Info.TimeToShow > 0 and Info.FadeOut >= 0) {
 //                Uart.Printf("Read Info ok\r");
                 return OK;
             }
@@ -137,7 +135,7 @@ void ImgList_t::OnTime() {
         else if(Rslt != OK) return; // Read info failure
         // Info ok
 //        Uart.Printf("OnTime %S t=%u; fi=%u; fo=%u\r", Info.Name, Info.TimeToShow, Info.FadeIn, Info.FadeOut);
-        Rslt = Lcd.DrawBmpFile(0,0, Info.Name, &File, Info.BckltOn, Info.FadeIn, PrevFadeOut);
+        Rslt = Lcd.DrawBmpFile(0,0, Info.Name, &File, Info.FadeIn, PrevFadeOut);
         // Start timer if draw succeded
         if(Rslt == OK) {
             chVTSet(&Tmr, MS2ST(Info.TimeToShow), TmrImgCallback, nullptr);
