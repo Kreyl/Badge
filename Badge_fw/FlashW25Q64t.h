@@ -45,7 +45,6 @@ public:
     uint8_t EraseAndWriteSector4k(uint32_t Addr, uint8_t *PBuf);
     void Reset();
     void PowerDown();
-    void PowerUp();
 };
 
 extern FlashW25Q64_t Mem;

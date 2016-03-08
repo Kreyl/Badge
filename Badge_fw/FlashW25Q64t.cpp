@@ -13,14 +13,15 @@ FlashW25Q64_t Mem;
 static thread_reference_t trp = NULL;
 
 // GPIO
-#define CsHi()      PinSet(MEM_GPIO, MEM_CS)
-#define CsLo()      PinClear(MEM_GPIO, MEM_CS)
-#define WpHi()      PinSet(MEM_GPIO, MEM_WP)
-#define WpLo()      PinClear(MEM_GPIO, MEM_WP)
-#define HoldHi()    PinSet(MEM_GPIO, MEM_HOLD)
-#define HoldLo()    PinClear(MEM_GPIO, MEM_HOLD)
-#define MemPwrOn()  PinClear(MEM_PWR_GPIO, MEM_PWR)
-#define MemPwrOff() PinSet(MEM_PWR_GPIO, MEM_PWR)
+#define CsHi()          PinSet(MEM_GPIO, MEM_CS)
+#define CsLo()          PinClear(MEM_GPIO, MEM_CS)
+#define WpHi()          PinSet(MEM_GPIO, MEM_WP)
+#define WpLo()          PinClear(MEM_GPIO, MEM_WP)
+#define HoldHi()        PinSet(MEM_GPIO, MEM_HOLD)
+#define HoldLo()        PinClear(MEM_GPIO, MEM_HOLD)
+#define MemPwrOn()      PinClear(MEM_PWR_GPIO, MEM_PWR)
+#define MemPwrOff()     PinSet(MEM_PWR_GPIO, MEM_PWR)
+#define MemIsPwrOn()    PinIsClear(MEM_PWR_GPIO, MEM_PWR)
 
 // Wrapper for RX IRQ
 extern "C" {
@@ -49,19 +50,31 @@ void FlashW25Q64_t::Init() {
     dmaStreamAllocate     (SPI1_DMA_RX, IRQ_PRIO_LOW, MemDmaEndIrq, NULL);
     dmaStreamSetPeripheral(SPI1_DMA_RX, &MEM_SPI->DR);
 
-
-    PowerUp();
+    Reset();
 }
 
 // Actually, this is ReleasePWD command
-void FlashW25Q64_t::PowerUp() {
+void FlashW25Q64_t::Reset() {
     while(true) {
-        // Power on
         MemPwrOn();
-        chThdSleepMilliseconds(270);
         CsHi();     // Disable IC
         WpLo();     // Write protect enable
         HoldHi();   // Hold disable
+        chThdSleepMilliseconds(180);
+
+        // Reset
+        chSysLock();
+        CsLo();
+        ISpi.ReadWriteByte(0x66);   // Enable Reset
+        CsHi();
+        __NOP(); __NOP(); __NOP(); __NOP();
+        CsLo();
+        ISpi.ReadWriteByte(0x99);   // Enable Reset
+        CsHi();
+        chSysUnlock();
+
+        // Power on sequence
+        chThdSleepMilliseconds(99);
         // Send initial cmds
         ISpi.ClearRxBuf();
         chSysLock();
@@ -77,11 +90,13 @@ void FlashW25Q64_t::PowerUp() {
         Uart.Printf("MemID=%X\r", id);
         if(id == 0x16) {
             IsReady = true;
+            ISpi.ClearRxBuf();
             return;
         }
+
         // ID does not match, retry
         PowerDown();
-        chThdSleepMilliseconds(540);
+        chThdSleepMilliseconds(270);
     } // while true
 }
 
@@ -156,24 +171,6 @@ uint8_t FlashW25Q64_t::EraseAndWriteSector4k(uint32_t Addr, uint8_t *PBuf) {
     chSysUnlock();
     return rslt;
 }
-
-void FlashW25Q64_t::Reset() {
-    chSysLock();
-    CsLo();
-    ISpi.ReadWriteByte(0x66);   // Enable Reset
-    CsHi();
-    __NOP();
-    __NOP();
-    __NOP();
-    __NOP();
-    CsLo();
-    ISpi.ReadWriteByte(0x99);   // Enable Reset
-    CsHi();
-    chSysUnlock();
-    chThdSleepMilliseconds(18);
-    PowerUp();
-}
-
 #endif // Exported
 
 #if 1 // =========================== Inner methods =============================

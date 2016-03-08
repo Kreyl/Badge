@@ -19,7 +19,7 @@ Maybe, to calm Eclipse, it will be required to write extra quote in the end: "\"
 */
 
 // Lib version
-#define KL_LIB_VERSION      "20160306_1222"
+#define KL_LIB_VERSION      "20160308_1158"
 
 #if defined STM32L1XX
 #include "stm32l1xx.h"
@@ -423,10 +423,18 @@ enum PinAF_t {
 #define PinSet(PGpio, APin)     PGpio->BSRRL = ((uint16_t)(1 << (APin)))
 #define PinClear(PGpio, APin)   PGpio->BSRRH = ((uint16_t)(1 << (APin)))
 #elif defined STM32F0XX || defined STM32F10X_LD_VL
-#define PinSet(PGpio, APin)     PGpio->BSRR = ((uint32_t)(1 << (APin)))
-#define PinClear(PGpio, APin)   PGpio->BRR  = ((uint32_t)(1 << (APin)))
+__always_inline
+static inline void PinSet(GPIO_TypeDef *PGpio, uint32_t APin) { PGpio->BSRR = 1 << APin; }
+__always_inline
+static inline void PinSet(const PortPin_t PortPin) { PortPin.PGpio->BSRR = 1 << PortPin.Pin; }
+
+__always_inline
+static inline void PinClear (GPIO_TypeDef *PGpio, uint32_t APin) { PGpio->BRR = 1 << APin;  }
+__always_inline
+static inline void PinClear(const PortPin_t PortPin) { PortPin.PGpio->BRR = 1 << PortPin.Pin; }
 #endif
-#define PinToggle(PGpio, APin)  PGpio->ODR  ^= ((uint16_t)(1 << (APin)))
+__always_inline
+static inline void PinToggle(GPIO_TypeDef *PGpio, uint32_t APin) { PGpio->ODR ^= 1 << APin; }
 
 // Check input
 __always_inline
@@ -436,6 +444,11 @@ static inline bool PinIsSet(GPIO_TypeDef *PGpio, uint32_t APin) {
 __always_inline
 static inline bool PinIsSet(const PortPin_t PortPin) {
     return PortPin.PGpio->IDR & (1 << PortPin.Pin);
+}
+
+__always_inline
+static inline bool PinIsClear(GPIO_TypeDef *PGpio, uint32_t APin) {
+    return !(PGpio->IDR & (1 << APin));
 }
 __always_inline
 static inline bool PinIsClear(const PortPin_t PortPin) {

@@ -85,6 +85,8 @@ void App_t::ITask() {
         if(EvtMsk & EVT_USB_CONNECTED) {
             Uart.Printf("5v is here\r");
             Is5VConnected = true;
+            // Signal battery charge status changed
+            BatteryPercent = 255;
             chThdSleepMilliseconds(270);
             // Enable HSI48
             chSysLock();
@@ -104,6 +106,8 @@ void App_t::ITask() {
         if(EvtMsk & EVT_USB_DISCONNECTED) {
             Uart.Printf("5v off\r");
             Is5VConnected = false;
+            // Signal battery charge status changed
+            BatteryPercent = 255;
             // Disable Usb & HSI48
             UsbMsd.Disconnect();
             chSysLock();
@@ -250,7 +254,12 @@ uint8_t GetNextDir() {
                 }
             }
         } // if rslt ok
-        else return FAILURE;
+        else {
+#if IMG_SEARCH_DEBUG
+            Uart.Printf("2> ReadDir Err=%u\r", rslt);
+#endif
+            return FAILURE;
+        }
     } // while true
 }
 

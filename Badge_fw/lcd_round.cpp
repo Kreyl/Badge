@@ -521,7 +521,7 @@ uint8_t Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PF
 #endif
 
 void Lcd_t::DrawBattery(uint8_t Percent, BatteryState_t State, LcdHideProcess_t Hide) {
-    Uart.Printf("DrawBat\r");
+//    Uart.Printf("DrawBat\r");
     // Switch off backlight to save power if needed
     if(Hide == lhpHide) {
         Led1.Set(0);
