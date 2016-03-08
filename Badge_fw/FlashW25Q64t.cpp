@@ -50,18 +50,17 @@ void FlashW25Q64_t::Init() {
     dmaStreamAllocate     (SPI1_DMA_RX, IRQ_PRIO_LOW, MemDmaEndIrq, NULL);
     dmaStreamSetPeripheral(SPI1_DMA_RX, &MEM_SPI->DR);
 
+    MemPwrOn();
+    CsHi();     // Disable IC
+    WpLo();     // Write protect enable
+    HoldHi();   // Hold disable
+    chThdSleepMilliseconds(180);
     Reset();
 }
 
 // Actually, this is ReleasePWD command
 void FlashW25Q64_t::Reset() {
     while(true) {
-        MemPwrOn();
-        CsHi();     // Disable IC
-        WpLo();     // Write protect enable
-        HoldHi();   // Hold disable
-        chThdSleepMilliseconds(180);
-
         // Reset
         chSysLock();
         CsLo();
@@ -74,7 +73,7 @@ void FlashW25Q64_t::Reset() {
         chSysUnlock();
 
         // Power on sequence
-        chThdSleepMilliseconds(99);
+        chThdSleepMilliseconds(270);
         // Send initial cmds
         ISpi.ClearRxBuf();
         chSysLock();
@@ -93,10 +92,7 @@ void FlashW25Q64_t::Reset() {
             ISpi.ClearRxBuf();
             return;
         }
-
         // ID does not match, retry
-        PowerDown();
-        chThdSleepMilliseconds(270);
     } // while true
 }
 
