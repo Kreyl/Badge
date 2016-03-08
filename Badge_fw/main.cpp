@@ -320,7 +320,7 @@ void App_t::DrawNext() {
                 f_chdir(DirName);
                 CurrentDirIsRoot = false;
                 // Check if config presents
-                if(ImgList.TryToConfig("config.ini") == OK) {
+                if(ImgList.TryToConfig() == OK) {
                     ImgList.Start();
                     break;
                 }

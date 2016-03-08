@@ -389,7 +389,7 @@ void WriteLine32(uint8_t *PBuf, int32_t Width) {
     }
 }
 
-uint8_t Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile, uint16_t FadeIn, uint16_t FadeOut) {
+uint8_t Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PFile, int32_t BckltOn, uint16_t FadeIn, uint16_t FadeOut) {
 //    Uart.Printf("Draw %S\r", Filename);
     uint32_t RCnt=0, FOffset, ColorTableSize = 0, BitCnt;
     int32_t Width, Height, LineSz;
@@ -413,8 +413,10 @@ uint8_t Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PF
         }
     }
     else {
-        Led1.Set(0);
-        Led2.Set(0);
+        if(BckltOn == 0) {
+            Led1.Set(0);
+            Led2.Set(0);
+        }
     }
 
     Clk.SwitchToHsi48();    // Increase MCU freq
@@ -510,8 +512,10 @@ uint8_t Lcd_t::DrawBmpFile(uint8_t x0, uint8_t y0, const char *Filename, FIL *PF
         }
     }
     else {
-        Led1.Set(IBrightness);
-        Led2.Set(IBrightness);
+        if(BckltOn == 0) {
+            Led1.Set(IBrightness);
+            Led2.Set(IBrightness);
+        }
     }
 
     // Signal Draw Completed
