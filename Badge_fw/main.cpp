@@ -18,9 +18,6 @@ ImgList_t ImgList;
 #define IsCharging()        (!PinIsSet(BAT_CHARGE_GPIO, BAT_CHARGE_PIN))
 #define ButtonIsPressed()   (PinIsSet(BTN_GPIO, BTN_PIN))
 
-// Extension of graphic files to search
-const char Extension[] = "*.bmp";
-
 #define AHB_DIVIDER ahbDiv8
 
 int main(void) {
@@ -67,15 +64,13 @@ int main(void) {
     // ==== FAT init ====
     // DMA-based MemCpy init
     dmaStreamAllocate(STM32_DMA1_STREAM3, IRQ_PRIO_LOW, NULL, NULL);
-//    if(TryInitFS() == OK) App.DrawNextBmp();
+    if(TryInitFS() == OK) Lcd.DrawBmpFile(0,0, "play_russian.bmp", &File);
 
     PinSensors.Init();
     TmrMeasurement.InitAndStart(chThdGetSelfX(), MS2ST(MEASUREMENT_PERIOD_MS), EVT_SAMPLING, tktPeriodic);
     // Main cycle
     App.ITask();
 }
-
-//if(ImgList.TryToConfig("config.ini") == OK) ImgList.Start();
 
 __noreturn
 void App_t::ITask() {
@@ -210,18 +205,22 @@ void App_t::Shutdown() {
 }
 
 #if 1 // ============================ Image search etc =========================
-#define IMG_SEARCH_DEBUG    FALSE
+#define IMG_SEARCH_DEBUG    TRUE
 
 uint8_t GetNextImg() {
     while(true) {
         uint8_t rslt = f_readdir(&Dir, &FileInfo);  // Get item in dir
         if(rslt == FR_OK and FileInfo.fname[0]) {   // Something found
 #if IMG_SEARCH_DEBUG
-            Uart.Printf("1> %S; attrib=%X\r", FileInfo.fname, FileInfo.fattrib);
+            Uart.Printf("1> %S; %S; attrib=%X\r", FileInfo.fname, FileInfo.lfname, FileInfo.fattrib);
 #endif
             if(FileInfo.fattrib & (AM_HID | AM_DIR)) continue; // Ignore hidden files and dirs
             else {
-                if(strstr(FileInfo.fname, ".BMP") != nullptr) return OK;
+                uint32_t Len = strlen(FileInfo.fname);
+                if(Len >= 5) {
+                    char *S = &FileInfo.fname[Len-4];
+                    if(strcasecmp(S, ".BMP") == 0) return OK;
+                } // if len > 5
             }
         }
         else return FAILURE;
