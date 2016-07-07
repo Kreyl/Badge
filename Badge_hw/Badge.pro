@@ -1,4 +1,4 @@
-update=24.12.2015 1:52:00
+update=12.05.2016 10:14:35
 version=1
 last_client=eeschema
 [pcbnew]
@@ -29,13 +29,14 @@ version=1
 version=1
 LibDir=D:/Libs/Kicad
 [eeschema/libraries]
-LibName1=Connectors_kl
-LibName2=display_kl
-LibName3=pcb_details
-LibName4=power
-LibName5=Power_kl
-LibName6=st_kl
-LibName7=Switches
-LibName8=Tittar_kl
-LibName9=memory
-LibName10=Transistors_kl
+LibName1=Badge-rescue
+LibName2=Connectors_kl
+LibName3=display_kl
+LibName4=pcb_details
+LibName5=power
+LibName6=Power_kl
+LibName7=st_kl
+LibName8=Switches
+LibName9=Tittar_kl
+LibName10=memory
+LibName11=Transistors_kl

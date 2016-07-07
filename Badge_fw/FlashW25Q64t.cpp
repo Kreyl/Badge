@@ -108,7 +108,10 @@ void FlashW25Q64_t::PowerDown() {
 uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
     chSysLock();
     msg_t msg = chBSemWaitS(&BSemaphore);
-    if(msg != MSG_OK) return FAILURE;
+    if(msg != MSG_OK) {
+        chSysUnlock();
+        return FAILURE;
+    }
     CsLo();
     // ==== Send Cmd & Addr ====
     ISendCmdAndAddr(0x03, Addr);    // Cmd Read
@@ -139,7 +142,10 @@ uint8_t FlashW25Q64_t::Read(uint32_t Addr, uint8_t *PBuf, uint32_t ALen) {
 uint8_t FlashW25Q64_t::EraseAndWriteSector4k(uint32_t Addr, uint8_t *PBuf) {
     chSysLock();
     msg_t msg = chBSemWaitS(&BSemaphore);
-    if(msg != MSG_OK) return FAILURE;
+    if(msg != MSG_OK) {
+        chSysUnlock();
+        return FAILURE;
+    }
     WpHi();     // Write protect disable
     // First, erase sector
     uint8_t rslt = EraseSector4k(Addr);

@@ -1,4 +1,5 @@
 EESchema Schematic File Version 2
+LIBS:Badge-rescue
 LIBS:Connectors_kl
 LIBS:display_kl
 LIBS:pcb_details
@@ -155,7 +156,7 @@ F 3 "" H 10550 1700 60  0000 C CNN
 	1    0    0    -1  
 $EndComp
 $Comp
-L TESTPOINT TP1
+L TESTPOINT-RESCUE-Badge TP1
 U 1 1 5679C01D
 P 6150 4100
 F 0 "TP1" V 6150 4350 60  0000 C CNN
